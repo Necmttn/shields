@@ -1,7 +1,8 @@
 import Joi from 'joi'
 import { nonNegativeInteger } from '../validators.js'
-import { BaseJsonService, pathParams } from '../index.js'
+import { BaseJsonService, pathParam } from '../index.js'
 import { renderDownloadsBadge } from '../downloads.js'
+import { pypiPackageParam } from './pypi-base.js'
 
 const schema = Joi.object({
   data: Joi.object({
@@ -33,29 +34,30 @@ export default class PypiDownloads extends BaseJsonService {
 
   static route = {
     base: 'pypi',
-    pattern: ':period(dd|dw|dm)/:packageName',
+    pattern: ':period/:packageName',
   }
+  static routeEnum = ['dd', 'dw', 'dm']
 
   static openApi = {
     '/pypi/{period}/{packageName}': {
       get: {
-        summary: 'PyPI - Downloads',
+        summary: 'PyPI Downloads',
         description:
           'Python package downloads from [pypistats](https://pypistats.org/)',
-        parameters: pathParams(
-          {
+        parameters: [
+          pathParam({
             name: 'period',
             example: 'dd',
             schema: { type: 'string', enum: this.getEnum('period') },
             description: 'Daily, Weekly, or Monthly downloads',
-          },
-          { name: 'packageName', example: 'Django' },
-        ),
+          }),
+          pypiPackageParam,
+        ],
       },
     },
   }
 
-  static _cacheLength = 28800
+  static _cacheLength = 43200
 
   static defaultBadgeData = { label: 'downloads' }
 

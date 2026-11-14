@@ -2,9 +2,9 @@
  * @module
  */
 
+import http from 'node:http'
 import path from 'path'
 import url, { fileURLToPath } from 'url'
-import { bootstrap } from 'global-agent'
 import cloudflareMiddleware from 'cloudflare-middleware'
 import Camp from '@shields_io/camp'
 import originalJoi from 'joi'
@@ -16,7 +16,12 @@ import { makeSend } from '../base-service/legacy-result-sender.js'
 import { handleRequest } from '../base-service/legacy-request-handler.js'
 import { clearResourceCache } from '../base-service/resource-cache.js'
 import { rasterRedirectUrl } from '../badge-urls/make-badge-url.js'
-import { fileSize, nonNegativeInteger } from '../../services/validators.js'
+import {
+  fileSizeBytes,
+  nonNegativeInteger,
+  optionalUrl,
+  url as requiredUrl,
+} from '../../services/validators.js'
 import log from './log.js'
 import PrometheusMetrics from './prometheus-metrics.js'
 import InfluxMetrics from './influx-metrics.js'
@@ -54,12 +59,11 @@ const Joi = originalJoi
     },
   }))
 
-const optionalUrl = Joi.string().uri({ scheme: ['http', 'https'] })
-const requiredUrl = optionalUrl.required()
 const origins = Joi.arrayFromString().items(Joi.string().origin())
 const defaultService = Joi.object({ authorizedOrigins: origins }).default({
   authorizedOrigins: [],
 })
+const openEndedServiceFamilies = new Set(['dynamic', 'endpoint'])
 
 const publicConfigSchema = Joi.object({
   bind: {
@@ -111,13 +115,8 @@ const publicConfigSchema = Joi.object({
   },
   redirectUrl: optionalUrl,
   rasterUrl: optionalUrl,
-  cors: {
-    // This doesn't actually do anything
-    // TODO: maybe remove in future?
-    // https://github.com/badges/shields/pull/8311#discussion_r945337530
-    allowedOrigin: Joi.array().items(optionalUrl).required(),
-  },
   services: Joi.object({
+    bitbucket: defaultService,
     bitbucketServer: defaultService,
     drone: defaultService,
     github: {
@@ -139,6 +138,9 @@ const publicConfigSchema = Joi.object({
     nexus: defaultService,
     npm: defaultService,
     obs: defaultService,
+    pypi: {
+      baseUri: requiredUrl,
+    },
     sonar: defaultService,
     teamcity: defaultService,
     weblate: defaultService,
@@ -146,7 +148,7 @@ const publicConfigSchema = Joi.object({
   }).required(),
   cacheHeaders: { defaultCacheLengthSeconds: nonNegativeInteger },
   handleInternalErrors: Joi.boolean().required(),
-  fetchLimit: fileSize,
+  fetchLimitBytes: fileSizeBytes,
   userAgentBase: Joi.string().required(),
   requestTimeoutSeconds: nonNegativeInteger,
   requestTimeoutMaxAgeSeconds: nonNegativeInteger,
@@ -158,6 +160,8 @@ const publicConfigSchema = Joi.object({
       'public',
     ),
   ),
+  allowUnsecuredEndpointRequests: Joi.boolean().required(),
+  dynamicAndEndpointBadgesEnabled: Joi.boolean().required(),
   requireCloudflare: Joi.boolean().required(),
 }).required()
 
@@ -187,10 +191,13 @@ const privateConfigSchema = Joi.object({
   npm_token: Joi.string(),
   obs_user: Joi.string(),
   obs_pass: Joi.string(),
-  redis_url: Joi.string().uri({ scheme: ['redis', 'rediss'] }),
   opencollective_token: Joi.string(),
+  outagedeck_api_key: Joi.string(),
   pepy_key: Joi.string(),
   postgres_url: Joi.string().uri({ scheme: 'postgresql' }),
+  readthedocs_token: Joi.string(),
+  reddit_client_id: Joi.string(),
+  reddit_client_secret: Joi.string(),
   sentry_dsn: Joi.string(),
   sl_insight_userUuid: Joi.string(),
   sl_insight_apiToken: Joi.string(),
@@ -200,11 +207,10 @@ const privateConfigSchema = Joi.object({
   teamcity_pass: Joi.string(),
   twitch_client_id: Joi.string(),
   twitch_client_secret: Joi.string(),
-  wheelmap_token: Joi.string(),
   influx_username: Joi.string(),
   influx_password: Joi.string(),
   weblate_api_key: Joi.string(),
-  youtube_api_key: Joi.string(),
+  youtube_api_key: Joi.string(), // Deprecated, will be removed in an upcoming release.
 }).required()
 const privateMetricsInfluxConfigSchema = privateConfigSchema.append({
   influx_username: Joi.string().required(),
@@ -262,6 +268,7 @@ class Server {
 
     this.githubConstellation = new GithubConstellation({
       service: publicConfig.services.github,
+      metricsIntervalSeconds: publicConfig.metrics.influx.intervalSeconds,
       private: privateConfig,
     })
 
@@ -352,6 +359,15 @@ class Server {
       public: { rasterUrl },
     } = config
 
+    camp.route(/^\/favicon\.ico$/, (query, match, end, request) => {
+      request.res.statusCode = 404
+      request.res.setHeader(
+        'Cache-Control',
+        'public, max-age=31536000, s-maxage=31536000, immutable',
+      )
+      makeSend('empty', request.res, end)()
+    })
+
     camp.route(/\.(gif|jpg)$/, (query, match, end, request) => {
       const [, format] = match
       makeSend(
@@ -391,6 +407,8 @@ class Server {
     camp.notfound(/(\.svg|\.json|)$/, (query, match, end, request) => {
       const [, extension] = match
       const format = (extension || '.svg').replace(/^\./, '')
+
+      request.res.statusCode = 200
 
       makeSend(
         format,
@@ -457,42 +475,45 @@ class Server {
     const { apiProvider: githubApiProvider } = this.githubConstellation
     const { apiProvider: librariesIoApiProvider } =
       this.librariesioConstellation
-    ;(await loadServiceClasses()).forEach(serviceClass =>
-      serviceClass.register(
-        {
-          camp,
-          handleRequest,
-          githubApiProvider,
-          librariesIoApiProvider,
-          metricInstance,
-        },
-        {
-          handleInternalErrors: config.public.handleInternalErrors,
-          cacheHeaders: config.public.cacheHeaders,
-          rasterUrl: config.public.rasterUrl,
-          private: config.private,
-          public: config.public,
-        },
-      ),
-    )
+    ;(await loadServiceClasses())
+      .filter(
+        ({ serviceFamily }) =>
+          config.public.dynamicAndEndpointBadgesEnabled ||
+          !openEndedServiceFamilies.has(serviceFamily),
+      )
+      .forEach(serviceClass =>
+        serviceClass.register(
+          {
+            camp,
+            handleRequest,
+            githubApiProvider,
+            librariesIoApiProvider,
+            metricInstance,
+          },
+          {
+            handleInternalErrors: config.public.handleInternalErrors,
+            cacheHeaders: config.public.cacheHeaders,
+            rasterUrl: config.public.rasterUrl,
+            private: config.private,
+            public: config.public,
+          },
+        ),
+      )
   }
 
   bootstrapAgent() {
-    /*
-    Bootstrap global agent.
-    This allows self-hosting users to configure a proxy with
-    HTTP_PROXY, HTTPS_PROXY, NO_PROXY variables
-    */
-    if (!('GLOBAL_AGENT_ENVIRONMENT_VARIABLE_NAMESPACE' in process.env)) {
-      process.env.GLOBAL_AGENT_ENVIRONMENT_VARIABLE_NAMESPACE = ''
-    }
-
-    const proxyPrefix = process.env.GLOBAL_AGENT_ENVIRONMENT_VARIABLE_NAMESPACE
-    const HTTP_PROXY = process.env[`${proxyPrefix}HTTP_PROXY`] || null
-    const HTTPS_PROXY = process.env[`${proxyPrefix}HTTPS_PROXY`] || null
+    // Preserve custom proxy-variable prefixes used by existing self-hosted setups.
+    const proxyPrefix =
+      process.env.GLOBAL_AGENT_ENVIRONMENT_VARIABLE_NAMESPACE ?? ''
+    const HTTP_PROXY = process.env[`${proxyPrefix}HTTP_PROXY`]
+    const HTTPS_PROXY = process.env[`${proxyPrefix}HTTPS_PROXY`] ?? HTTP_PROXY
 
     if (HTTP_PROXY || HTTPS_PROXY) {
-      bootstrap()
+      return http.setGlobalProxyFromEnv({
+        HTTP_PROXY,
+        HTTPS_PROXY,
+        NO_PROXY: process.env[`${proxyPrefix}NO_PROXY`],
+      })
     }
   }
 
@@ -518,6 +539,7 @@ class Server {
       port,
       hostname,
       secure,
+      spdy: false,
       staticMaxAge: 300,
       cert,
       key,
@@ -528,19 +550,23 @@ class Server {
     }
 
     const { githubConstellation, metricInstance } = this
-    await githubConstellation.initialize(camp)
+    await githubConstellation.initialize(camp, metricInstance)
     if (metricInstance) {
-      if (this.config.public.metrics.prometheus.endpointEnabled) {
-        metricInstance.registerMetricsEndpoint(camp)
-      }
+      metricInstance.registerMetricsEndpoint(
+        camp,
+        this.config.public.metrics.prometheus.endpointEnabled,
+      )
       if (this.influxMetrics) {
         this.influxMetrics.startPushingMetrics()
       }
     }
 
-    // https://github.com/badges/shields/issues/3273
     camp.handle((req, res, next) => {
+      // https://github.com/badges/shields/issues/3273
       res.setHeader('Access-Control-Allow-Origin', '*')
+      // https://github.com/badges/shields/issues/10419
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin')
+
       next()
     })
 

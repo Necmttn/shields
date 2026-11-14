@@ -2,8 +2,6 @@
  * @module
  */
 
-// See available emoji at http://emoji.muan.co/
-import emojic from 'emojic'
 import Joi from 'joi'
 import log from '../server/log.js'
 import { AuthHelper } from './auth-helper.js'
@@ -17,9 +15,7 @@ import {
   Inaccessible,
   ImproperlyConfigured,
   InvalidParameter,
-  Deprecated,
 } from './errors.js'
-import { validateExample, transformExample } from './examples.js'
 import { fetch } from './got.js'
 import { getEnum } from './openapi.js'
 import {
@@ -32,6 +28,8 @@ import {
 import { assertValidServiceDefinition } from './service-definitions.js'
 import trace from './trace.js'
 import validate from './validate.js'
+
+/** @import { openApiSchema } from './service-definitions.js' */
 
 const defaultBadgeDataSchema = Joi.object({
   label: Joi.string(),
@@ -48,10 +46,6 @@ const optionalStringWhenNamedLogoPresent = Joi.alternatives().conditional(
   },
 )
 
-const optionalNumberWhenAnyLogoPresent = Joi.alternatives()
-  .conditional('namedLogo', { is: Joi.string().required(), then: Joi.number() })
-  .conditional('logoSvg', { is: Joi.string().required(), then: Joi.number() })
-
 const serviceDataSchema = Joi.object({
   isError: Joi.boolean(),
   label: Joi.string().allow(''),
@@ -66,8 +60,7 @@ const serviceDataSchema = Joi.object({
   namedLogo: Joi.string(),
   logoSvg: Joi.string(),
   logoColor: optionalStringWhenNamedLogoPresent,
-  logoWidth: optionalNumberWhenAnyLogoPresent,
-  logoPosition: optionalNumberWhenAnyLogoPresent,
+  logoSize: optionalStringWhenNamedLogoPresent,
   cacheSeconds: Joi.number().integer().min(0),
   style: Joi.string(),
 })
@@ -91,21 +84,37 @@ class BaseService {
     throw new Error(`Category not set for ${this.name}`)
   }
 
-  static isDeprecated = false
+  static isRetired = false
 
   /**
    * Route to mount this service on
    *
    * @abstract
-   * @type {module:core/base-service/base~Route}
+   * @type {Route}
    */
   static get route() {
     throw new Error(`Route not defined for ${this.name}`)
   }
 
   /**
-   * Extract an array of allowed values from this service's route pattern
-   * for a given route parameter
+   * If the route pattern includes an enum, this property should be set to the
+   * array of allowed values. This is used to validate the route pattern and
+   * generate the OpenAPI spec.
+   * enum applies to the first param in the route pattern.
+   *
+   * @abstract
+   * @type {string[]}
+   */
+  static routeEnum = undefined
+
+  /**
+   * If old route enum is used (legacy):
+   *  Extract an array of allowed values from this service's route pattern
+   *  for a given route parameter
+   *
+   * If new routeEnum is used:
+   *  Return the array of allowed values for a given route parameter from the
+   *  routeEnum property
    *
    * @param {string} param The name of a param in this service's route pattern
    * @returns {string[]} Array of allowed values for this param
@@ -114,6 +123,23 @@ class BaseService {
     if (!('pattern' in this.route)) {
       throw new Error('getEnum() requires route to have a .pattern property')
     }
+
+    if (this.routeEnum) {
+      if (
+        !Array.isArray(this.routeEnum) ||
+        this.routeEnum.length === 0 ||
+        !this.routeEnum.every(item => typeof item === 'string')
+      ) {
+        throw new Error(
+          `getEnum() requires routeEnum for ${this.name} to be a non-empty array of strings`,
+        )
+      }
+
+      return this.routeEnum
+    }
+
+    // TODO Remove after #11371 is merged the old route extraction.
+    // replace with error if routeEnum and this function is called.
     const enumeration = getEnum(this.route.pattern, param)
     if (!Array.isArray(enumeration)) {
       throw new Error(
@@ -139,46 +165,36 @@ class BaseService {
    * this._request(this.authHelper.withBasicAuth({ url, schema, options }))
    *
    * @abstract
-   * @type {module:core/base-service/base~Auth}
+   * @type {Auth}
    */
   static auth = undefined
 
   /**
-   * Array of Example objects describing example URLs for this service.
-   * These should use the format specified in `route`,
-   * and can be used to demonstrate how to use badges for this service.
-   *
-   * The preferred way to specify an example is with `namedParams` which are
-   * substituted into the service's compiled route pattern. The rendered badge
-   * is specified with `staticPreview`.
-   *
-   * For services which use a route `format`, the `pattern` can be specified as
-   * part of the example.
-   *
-   * @see {@link module:core/base-service/base~Example}
-   * @abstract
-   * @type {module:core/base-service/base~Example[]}
-   */
-  static examples = []
-
-  /**
-   * Optional: an OpenAPI Paths Object describing this service's
+   * An OpenAPI Paths Object describing this service's
    * route or routes in OpenAPI format.
    *
-   * @see https://swagger.io/specification/#paths-object
    * @abstract
+   * @see https://swagger.io/specification/#paths-object
+   * @see {@link module:core/base-service/service-definitions~openApiSchema}
+   * @type {openApiSchema}
    */
-  static openApi = undefined
+  static openApi = {}
 
   static get _cacheLength() {
     const cacheLengths = {
       build: 30,
-      license: 3600,
-      version: 300,
       debug: 60,
-      downloads: 900,
-      rating: 900,
-      social: 900,
+
+      'platform-support': 300,
+      size: 300,
+      version: 300,
+
+      chat: 1800,
+      downloads: 1800,
+      rating: 1800,
+      social: 1800,
+
+      license: 14400,
     }
     return cacheLengths[this.category]
   }
@@ -188,7 +204,7 @@ class BaseService {
    * These defaults are used if the value is neither included in the service data
    * from the handler nor overridden by the user via query parameters.
    *
-   * @type {module:core/base-service/base~DefaultBadgeData}
+   * @type {DefaultBadgeData}
    */
   static defaultBadgeData = {}
 
@@ -207,35 +223,25 @@ class BaseService {
       `Default badge data for ${this.name}`,
     )
 
-    this.examples.forEach((example, index) =>
-      validateExample(example, index, this),
-    )
-
     // ensure openApi spec matches route
-    if (this.openApi) {
-      const preparedRoute = prepareRoute(this.route)
-      for (const [key, value] of Object.entries(this.openApi)) {
-        let example = key
-        for (const param of value.get.parameters) {
-          example = example.replace(`{${param.name}}`, param.example)
-        }
-        if (!example.match(preparedRoute.regex)) {
-          throw new Error(
-            `Inconsistent Open Api spec and Route found for service ${this.name}`,
-          )
-        }
+    const preparedRoute = prepareRoute(this.route)
+    for (const [key, value] of Object.entries(this.openApi)) {
+      let example = key
+      for (const param of value.get.parameters) {
+        example = example.replace(`{${param.name}}`, param.example)
+      }
+      if (!example.match(preparedRoute.regex)) {
+        throw new Error(
+          `Inconsistent Open Api spec and Route found for service ${this.name}`,
+        )
       }
     }
   }
 
   static getDefinition() {
-    const { category, name, isDeprecated, openApi } = this
+    const { category, name, isRetired, openApi } = this
     const { base, format, pattern } = this.route
     const queryParams = getQueryParamNames(this.route)
-
-    const examples = this.examples.map((example, index) =>
-      transformExample(example, index, this),
-    )
 
     let route
     if (pattern) {
@@ -246,7 +252,7 @@ class BaseService {
       route = undefined
     }
 
-    const result = { category, name, isDeprecated, route, examples, openApi }
+    const result = { category, name, isRetired, route, openApi }
 
     assertValidServiceDefinition(result, `getDefinition() for ${this.name}`)
 
@@ -285,7 +291,7 @@ class BaseService {
       delete logOptions.searchParams
     }
     logTrace(
-      emojic.bowAndArrow,
+      '🏹',
       'Request',
       `${logUrl}\n${JSON.stringify(logOptions, null, 2)}`,
     )
@@ -295,7 +301,7 @@ class BaseService {
       systemErrors,
     )
     await this._meterResponse(res, buffer)
-    logTrace(emojic.dart, 'Response status code', res.statusCode)
+    logTrace('🎯', 'Response status code', res.statusCode)
     return checkErrorResponse(httpErrors, logErrors)({ buffer, res })
   }
 
@@ -318,11 +324,7 @@ class BaseService {
   static _validate(
     data,
     schema,
-    {
-      prettyErrorMessage = 'invalid response data',
-      includeKeys = false,
-      allowAndStripUnknownKeys = true,
-    } = {},
+    { prettyErrorMessage = 'invalid response data', includeKeys = false } = {},
   ) {
     return validate(
       {
@@ -331,7 +333,6 @@ class BaseService {
         includeKeys,
         traceErrorMessage: 'Response did not match schema',
         traceSuccessMessage: 'Response after validation',
-        allowAndStripUnknownKeys,
       },
       data,
       schema,
@@ -347,7 +348,7 @@ class BaseService {
    * @param {object} namedParams Params parsed from route pattern
    *    defined in this.route.pattern or this.route.capture
    * @param {object} queryParams Params parsed from the query string
-   * @returns {module:core/base-service/base~Badge}
+   * @returns {Badge}
    *    badge Object validated against serviceDataSchema
    */
   async handle(namedParams, queryParams) {
@@ -362,7 +363,7 @@ class BaseService {
 
   _handleError(error) {
     if (error instanceof NotFound || error instanceof InvalidParameter) {
-      trace.logTrace('outbound', emojic.noGoodWoman, 'Handled error', error)
+      trace.logTrace('outbound', '🙅', 'Handled error', error)
       return {
         isError: true,
         message: error.prettyMessage,
@@ -371,10 +372,9 @@ class BaseService {
     } else if (
       error instanceof ImproperlyConfigured ||
       error instanceof InvalidResponse ||
-      error instanceof Inaccessible ||
-      error instanceof Deprecated
+      error instanceof Inaccessible
     ) {
-      trace.logTrace('outbound', emojic.noGoodWoman, 'Handled error', error)
+      trace.logTrace('outbound', '🙅', 'Handled error', error)
       const serviceData = {
         isError: true,
         message: error.prettyMessage,
@@ -388,7 +388,7 @@ class BaseService {
       if (
         !trace.logTrace(
           'unhandledError',
-          emojic.boom,
+          '💥',
           'Unhandled internal error',
           error,
         )
@@ -404,12 +404,7 @@ class BaseService {
         color: 'lightgray',
       }
     } else {
-      trace.logTrace(
-        'unhandledError',
-        emojic.boom,
-        'Unhandled internal error',
-        error,
-      )
+      trace.logTrace('unhandledError', '💥', 'Unhandled internal error', error)
       throw error
     }
   }
@@ -420,9 +415,9 @@ class BaseService {
     namedParams = {},
     queryParams = {},
   ) {
-    trace.logTrace('inbound', emojic.womanCook, 'Service class', this.name)
-    trace.logTrace('inbound', emojic.ticket, 'Named params', namedParams)
-    trace.logTrace('inbound', emojic.crayon, 'Query params', queryParams)
+    trace.logTrace('inbound', '👩‍🍳', 'Service class', this.name)
+    trace.logTrace('inbound', '🎫', 'Named params', namedParams)
+    trace.logTrace('inbound', '🖍', 'Query params', queryParams)
 
     // Like the service instance, the auth helper could be reused for each request.
     // However, moving its instantiation to `register()` makes `invoke()` harder
@@ -437,6 +432,17 @@ class BaseService {
         ? 'credentials have not been configured'
         : 'credentials are misconfigured'
       serviceError = new ImproperlyConfigured({ prettyMessage })
+    }
+
+    if (!serviceError && this.routeEnum) {
+      const firstParamName = Object.keys(namedParams || {})[0]
+      if (firstParamName) {
+        if (!this.routeEnum.includes(namedParams[firstParamName])) {
+          serviceError = new InvalidParameter({
+            prettyMessage: `invalid parameter ${firstParamName}: ${namedParams[firstParamName]}`,
+          })
+        }
+      }
     }
 
     const { queryParamSchema } = this.route
@@ -456,7 +462,7 @@ class BaseService {
         )
         trace.logTrace(
           'inbound',
-          emojic.crayon,
+          '🖍',
           'Query params after validation',
           queryParams,
         )
@@ -484,7 +490,7 @@ class BaseService {
       serviceData = serviceInstance._handleError(serviceError)
     }
 
-    trace.logTrace('outbound', emojic.shield, 'Service data', serviceData)
+    trace.logTrace('outbound', '🛡', 'Service data', serviceData)
 
     return serviceData
   }
@@ -500,7 +506,6 @@ class BaseService {
     serviceConfig,
   ) {
     const { cacheHeaders: cacheHeaderConfig } = serviceConfig
-    const { regex, captureNames } = prepareRoute(this.route)
     const queryParams = getQueryParamNames(this.route)
 
     const metricHelper = MetricHelper.create({
@@ -508,41 +513,71 @@ class BaseService {
       ServiceClass: this,
     })
 
-    camp.route(
-      regex,
-      handleRequest(cacheHeaderConfig, {
-        queryParams,
-        handler: async (queryParams, match, sendBadge) => {
-          const metricHandle = metricHelper.startRequest()
-
-          const namedParams = namedParamsForMatch(captureNames, match, this)
-          const serviceData = await this.invoke(
-            {
-              requestFetcher: fetch,
-              githubApiProvider,
-              librariesIoApiProvider,
-              metricHelper,
-            },
-            serviceConfig,
-            namedParams,
-            queryParams,
+    const routesToRegister = []
+    if (
+      this.routeEnum &&
+      Array.isArray(this.routeEnum) &&
+      this.routeEnum.length > 0
+    ) {
+      const { captureNames } = prepareRoute(this.route)
+      const firstParamName =
+        captureNames && captureNames.length > 0 ? captureNames[0] : undefined
+      if (firstParamName) {
+        for (const enumValue of this.routeEnum) {
+          const pattern = this.route.pattern.replace(
+            firstParamName,
+            `${firstParamName}(${enumValue})`, // keep capture for backwards compatibility
           )
+          routesToRegister.push({
+            route: { ...this.route, pattern },
+          })
+        }
+      } else {
+        routesToRegister.push({ route: this.route })
+      }
+    } else {
+      routesToRegister.push({ route: this.route })
+    }
 
-          const badgeData = coalesceBadge(
-            queryParams,
-            serviceData,
-            this.defaultBadgeData,
-            this,
-          )
-          // The final capture group is the extension.
-          const format = (match.slice(-1)[0] || '.svg').replace(/^\./, '')
-          sendBadge(format, badgeData)
+    for (const { route: routeToRegister } of routesToRegister) {
+      const { regex, captureNames } = prepareRoute(routeToRegister)
 
-          metricHandle.noteResponseSent()
-        },
-        cacheLength: this._cacheLength,
-      }),
-    )
+      camp.route(
+        regex,
+        handleRequest(cacheHeaderConfig, {
+          queryParams,
+          handler: async (queryParams, match, sendBadge) => {
+            const metricHandle = metricHelper.startRequest()
+
+            const namedParams = namedParamsForMatch(captureNames, match, this)
+            const serviceData = await this.invoke(
+              {
+                requestFetcher: fetch,
+                githubApiProvider,
+                librariesIoApiProvider,
+                metricHelper,
+              },
+              serviceConfig,
+              namedParams,
+              queryParams,
+            )
+
+            const badgeData = coalesceBadge(
+              queryParams,
+              serviceData,
+              this.defaultBadgeData,
+              this,
+            )
+            // The final capture group is the extension.
+            const format = (match.slice(-1)[0] || '.svg').replace(/^\./, '')
+            sendBadge(format, badgeData)
+
+            metricHandle.noteResponseSent()
+          },
+          cacheLength: this._cacheLength,
+        }),
+      )
+    }
   }
 }
 
@@ -597,9 +632,11 @@ class BaseService {
  *    receives numeric can use `Joi.string()`. A boolean
  *    parameter should use `Joi.equal('')` and will receive an
  *    empty string on e.g. `?compact_message` and undefined
- *    when the parameter is absent. (Note that in,
- *    `examples.queryParams` boolean query params should be given
- *    `null` values.)
+ *    when the parameter is absent. In the OpenApi definitions,
+ *    this type of param should be documented as
+ *    queryParam({
+ *      name: 'compact_message', schema: { type: 'boolean' }, example: null
+ *    })
  */
 
 /**
@@ -612,32 +649,6 @@ class BaseService {
  * @property {string} isRequired
  *    (Optional) If `true`, the service will return `NotFound` unless the
  *    configured credentials are present.
- */
-
-/**
- * @typedef {object} Example
- * @property {string} title
- *    Descriptive text that will be shown next to the badge. The default
- *    is to use the service class name, which probably is not what you want.
- * @property {object} namedParams
- *    An object containing the values of named parameters to
- *    substitute into the compiled route pattern.
- * @property {object} queryParams
- *    An object containing query parameters to include in the
- *    example URLs. For alphanumeric query parameters, specify a string value.
- *    For boolean query parameters, specify `null`.
- * @property {string} pattern
- *    The route pattern to compile. Defaults to `this.route.pattern`.
- * @property {object} staticPreview
- *    A rendered badge of the sort returned by `handle()` or
- *    `render()`: an object containing `message` and optional `label` and
- *    `color`. This is usually generated by invoking `this.render()` with some
- *    explicit props.
- * @property {string[]} keywords
- *    Additional keywords, other than words in the title. This helps
- *    users locate relevant badges.
- * @property {string} documentation
- *    An HTML string that is included in the badge popup.
  */
 
 export default BaseService

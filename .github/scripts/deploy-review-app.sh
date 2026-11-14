@@ -11,8 +11,8 @@ org="shields-io"
 pr_json=$(curl --fail "https://api.github.com/repos/badges/shields/pulls/$PR_NUMBER")
 
 # Checkout the PR branch
-git config user.name "actions[bot]"
-git config user.email "actions@users.noreply.github.com"
+git config user.name "github-actions[bot]"
+git config user.email "github-actions[bot]@users.noreply.github.com"
 git fetch origin "pull/$PR_NUMBER/head:pr-$PR_NUMBER"
 git checkout "pr-$PR_NUMBER"
 
@@ -23,7 +23,7 @@ if ! flyctl status --app "$app"; then
 fi
 
 # Deploy
-flyctl deploy --app "$app" --region "$region"
+flyctl deploy --app "$app" --regions "$region"
 flyctl scale count 1 --app "$app" --yes
 
 # Post a comment on the PR

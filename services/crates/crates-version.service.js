@@ -19,15 +19,11 @@ export default class CratesVersion extends BaseCratesService {
     },
   }
 
-  transform(json) {
-    return json.crate.max_stable_version
-      ? json.crate.max_stable_version
-      : json.crate.max_version
-  }
+  static _cacheLength = 3600 // We're hitting the API more frequently than requested by upstream maintainers (see https://github.com/badges/shields/issues/11879).
 
   async handle({ crate }) {
     const json = await this.fetch({ crate })
-    const version = this.transform(json)
+    const version = this.constructor.getLatestVersion(json)
     return renderVersionBadge({ version })
   }
 }

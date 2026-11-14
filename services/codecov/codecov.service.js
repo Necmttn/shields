@@ -23,6 +23,10 @@ const queryParamSchema = Joi.object({
   // Flags Must consist only of alphanumeric characters, '_', '-', or '.'
   // and not exceed 45 characters.
   flag: Joi.string().regex(/^[\w.-]{1,45}$/),
+  // https://docs.codecov.com/docs/components
+  // There's no explicit documentation on the valid patterns for component
+  // names and IDs. The component name in particular seems fairly flexible.
+  component: Joi.string().regex(/^.+$/),
 }).required()
 
 const schema = Joi.object({
@@ -36,12 +40,21 @@ const svgValueMatcher = />(\d{1,3}%|unknown)<\/text><\/g>/
 const badgeTokenPattern = /^\w{10}$/
 
 const description = `
-  <p>
-    You may specify a Codecov badge token to get coverage for a private repository.
-  </p>
-  <p>
-  You can find the token under the badge section of your project settings page, in this url: <code>https://codecov.io/&#60;vcsName&#62;/&#60;user&#62;/&#60;repo&#62;/settings/badge</code>.
-  </p>
+You may specify a Codecov badge token to get coverage for a private repository.
+
+You can find the token under the badge section of your project settings page, in this url: <code>https://codecov.io/[vcsName]/[user]/[repo]/config/badge</code>.
+`
+
+const tokenDescription = `Required only for private repositories.`
+
+const flagDescription = `
+Display coverage for a specific subset of your project.
+See [Codecov's documentation](https://docs.codecov.io/docs/flags) for details.
+`
+
+const componentDescription = `
+Display coverage for a specific component of your project.
+See [Codecov's documentation](https://docs.codecov.com/docs/components) for details.
 `
 
 export default class Codecov extends BaseSvgScrapingService {
@@ -50,9 +63,10 @@ export default class Codecov extends BaseSvgScrapingService {
     base: 'codecov/c',
     // https://docs.codecov.io/docs#section-common-questions
     // Github, BitBucket, and GitLab are the only supported options (long or short form)
-    pattern: ':vcsName(github|gh|bitbucket|bb|gl|gitlab)/:user/:repo/:branch*',
+    pattern: ':vcsName/:user/:repo/:branch*',
     queryParamSchema,
   }
+  static routeEnum = ['github', 'gh', 'bitbucket', 'bb', 'gl', 'gitlab']
 
   static openApi = {
     '/codecov/c/{vcsName}/{user}/{repo}': {
@@ -66,9 +80,22 @@ export default class Codecov extends BaseSvgScrapingService {
             schema: { type: 'string', enum: this.getEnum('vcsName') },
           }),
           pathParam({ name: 'user', example: 'codecov' }),
-          pathParam({ name: 'repo', example: 'example-node' }),
-          queryParam({ name: 'token', example: 'a1b2c3d4e5' }),
-          queryParam({ name: 'flag', example: 'flag_name' }),
+          pathParam({ name: 'repo', example: 'umbrella' }),
+          queryParam({
+            name: 'token',
+            description: tokenDescription,
+            example: 'a1b2c3d4e5',
+          }),
+          queryParam({
+            name: 'flag',
+            description: flagDescription,
+            example: 'flag_name',
+          }),
+          queryParam({
+            name: 'component',
+            description: componentDescription,
+            example: 'component_id_or_name',
+          }),
         ],
       },
     },
@@ -85,8 +112,21 @@ export default class Codecov extends BaseSvgScrapingService {
           pathParam({ name: 'user', example: 'codecov' }),
           pathParam({ name: 'repo', example: 'example-node' }),
           pathParam({ name: 'branch', example: 'master' }),
-          queryParam({ name: 'token', example: 'a1b2c3d4e5' }),
-          queryParam({ name: 'flag', example: 'flag_name' }),
+          queryParam({
+            name: 'token',
+            description: tokenDescription,
+            example: 'a1b2c3d4e5',
+          }),
+          queryParam({
+            name: 'flag',
+            description: flagDescription,
+            example: 'flag_name',
+          }),
+          queryParam({
+            name: 'component',
+            description: componentDescription,
+            example: 'component_id_or_name',
+          }),
         ],
       },
     },
@@ -139,23 +179,23 @@ export default class Codecov extends BaseSvgScrapingService {
     return { coverage: +json.commit.totals.c }
   }
 
-  // Doesn't support `flag` feature. Here for backward-compatibility purpose.
+  // Doesn't support `flag` or `component` features. Here for backward-compatibility purpose.
   async legacyHandle({ vcsName, user, repo, branch }, { token }) {
     const json = await this.legacyFetch({ vcsName, user, repo, branch, token })
     const { coverage } = this.legacyTransform({ json })
     return this.constructor.render({ coverage })
   }
 
-  async fetch({ vcsName, user, repo, branch, token, flag }) {
+  async fetch({ vcsName, user, repo, branch, token, flag, component }) {
     const url = `https://codecov.io/${vcsName}/${user}/${repo}${
-      branch ? `/branches/${branch}` : ''
+      branch ? `/branch/${branch}` : ''
     }/graph/badge.svg`
     return this._requestSvg({
       schema,
       valueMatcher: svgValueMatcher,
       url,
       options: {
-        searchParams: { token, flag },
+        searchParams: { token, flag, component },
       },
       httpErrors: token ? { 400: 'invalid token pattern' } : {},
     })
@@ -171,12 +211,20 @@ export default class Codecov extends BaseSvgScrapingService {
     return { coverage }
   }
 
-  async handle({ vcsName, user, repo, branch }, { token, flag }) {
-    if (!flag && token && !badgeTokenPattern.test(token)) {
+  async handle({ vcsName, user, repo, branch }, { token, flag, component }) {
+    if (!flag && !component && token && !badgeTokenPattern.test(token)) {
       return this.legacyHandle({ vcsName, user, repo, branch }, { token })
     }
 
-    const data = await this.fetch({ vcsName, user, repo, branch, token, flag })
+    const data = await this.fetch({
+      vcsName,
+      user,
+      repo,
+      branch,
+      token,
+      flag,
+      component,
+    })
     const { coverage } = this.transform({ data })
     return this.constructor.render({ coverage })
   }

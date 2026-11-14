@@ -67,8 +67,9 @@ class ScrutinizerCoverageBase extends ScrutinizerBase {
 class ScrutinizerCoverage extends ScrutinizerCoverageBase {
   static route = {
     base: 'scrutinizer/coverage',
-    pattern: ':vcs(g|b)/:user/:repo/:branch*',
+    pattern: ':vcs/:user/:repo/:branch*',
   }
+  static routeEnum = ['g', 'b']
 
   static openApi = {
     '/scrutinizer/coverage/{vcs}/{user}/{repo}': {
@@ -78,7 +79,7 @@ class ScrutinizerCoverage extends ScrutinizerCoverageBase {
           {
             name: 'vcs',
             example: 'g',
-            description: 'Platform: Either Github or Bitbucket',
+            description: 'Platform: Either GitHub or Bitbucket',
             schema: { type: 'string', enum: this.getEnum('vcs') },
           },
           { name: 'user', example: 'filp' },
@@ -93,7 +94,7 @@ class ScrutinizerCoverage extends ScrutinizerCoverageBase {
           {
             name: 'vcs',
             example: 'g',
-            description: 'Platform: Either Github or Bitbucket',
+            description: 'Platform: Either GitHub or Bitbucket',
             schema: { type: 'string', enum: this.getEnum('vcs') },
           },
           { name: 'user', example: 'filp' },

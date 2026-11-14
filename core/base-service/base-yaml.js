@@ -2,8 +2,7 @@
  * @module
  */
 
-import emojic from 'emojic'
-import yaml from 'js-yaml'
+import * as yaml from 'js-yaml'
 import BaseService from './base.js'
 import { InvalidResponse } from './errors.js'
 import trace from './trace.js'
@@ -14,6 +13,11 @@ import trace from './trace.js'
  * @abstract
  */
 class BaseYamlService extends BaseService {
+  static headers = {
+    Accept:
+      'text/x-yaml, text/yaml, application/x-yaml, application/yaml, text/plain',
+  }
+
   /**
    * Request data from an upstream API serving YAML,
    * parse it and validate against a schema
@@ -50,12 +54,7 @@ class BaseYamlService extends BaseService {
   }) {
     const logTrace = (...args) => trace.logTrace('fetch', ...args)
     const mergedOptions = {
-      ...{
-        headers: {
-          Accept:
-            'text/x-yaml, text/yaml, application/x-yaml, application/yaml, text/plain',
-        },
-      },
+      ...{ headers: this.constructor.headers },
       ...options,
     }
     const { buffer } = await this._request({
@@ -69,13 +68,13 @@ class BaseYamlService extends BaseService {
     try {
       parsed = yaml.load(buffer.toString(), encoding)
     } catch (err) {
-      logTrace(emojic.dart, 'Response YAML (unparseable)', buffer)
+      logTrace('🎯', 'Response YAML (unparseable)', buffer)
       throw new InvalidResponse({
         prettyMessage: 'unparseable yaml response',
         underlyingError: err,
       })
     }
-    logTrace(emojic.dart, 'Response YAML (before validation)', parsed, {
+    logTrace('🎯', 'Response YAML (before validation)', parsed, {
       deep: true,
     })
     return this.constructor._validate(parsed, schema)

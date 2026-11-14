@@ -1,5 +1,5 @@
 import Joi from 'joi'
-import prettyBytes from 'pretty-bytes'
+import { renderSizeBadge } from '../size.js'
 import { nonNegativeInteger } from '../validators.js'
 import { BaseJsonService, pathParams } from '../index.js'
 
@@ -16,8 +16,9 @@ export default class Bundlephobia extends BaseJsonService {
 
   static route = {
     base: 'bundlephobia',
-    pattern: ':format(min|minzip)/:scope(@[^/]+)?/:packageName/:version?',
+    pattern: ':format/:scope(@[^/]+)?/:packageName/:version?',
   }
+  static routeEnum = ['min', 'minzip']
 
   static openApi = {
     '/bundlephobia/{format}/{packageName}': {
@@ -106,16 +107,13 @@ export default class Bundlephobia extends BaseJsonService {
     },
   }
 
-  static _cacheLength = 900
+  static _cacheLength = 1800
 
   static defaultBadgeData = { label: 'bundlephobia', color: 'informational' }
 
   static render({ format, size }) {
     const label = format === 'min' ? 'minified size' : 'minzipped size'
-    return {
-      label,
-      message: prettyBytes(size),
-    }
+    return renderSizeBadge(size, 'iec', label)
   }
 
   async fetch({ scope, packageName, version }) {

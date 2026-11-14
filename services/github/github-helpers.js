@@ -2,14 +2,18 @@ import { colorScale } from '../color-formatters.js'
 import { InvalidResponse, NotFound } from '../index.js'
 
 const documentation = `
-If your GitHub badge errors, it might be because you hit GitHub's rate limits.
-You can increase Shields.io's rate limit by
-[adding the Shields GitHub application](https://img.shields.io/github-auth)
-using your GitHub account.
+You can help increase Shields.io's rate limit by
+[authorizing the Shields.io GitHub application](https://img.shields.io/github-auth).
+Read more about [how it works](/blog/token-pool).
 `
 
 function issueStateColor(s) {
-  return { open: '2cbe4e', closed: '6f42c1' }[s]
+  return {
+    open: '2cbe4e',
+    closed: '6f42c1',
+    'not planned': '666c76',
+    duplicate: '666c76',
+  }[s]
 }
 
 function httpErrorsFor(notFoundMessage = 'repo not found') {

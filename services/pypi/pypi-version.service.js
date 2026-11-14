@@ -1,7 +1,6 @@
-import { pathParams } from '../index.js'
 import { pep440VersionColor } from '../color-formatters.js'
 import { renderVersionBadge } from '../version.js'
-import PypiBase from './pypi-base.js'
+import PypiBase, { pypiGeneralParams } from './pypi-base.js'
 
 export default class PypiVersion extends PypiBase {
   static category = 'version'
@@ -11,14 +10,13 @@ export default class PypiVersion extends PypiBase {
   static openApi = {
     '/pypi/v/{packageName}': {
       get: {
-        summary: 'PyPI - Version',
-        parameters: pathParams({
-          name: 'packageName',
-          example: 'nine',
-        }),
+        summary: 'PyPI Version',
+        parameters: pypiGeneralParams,
       },
     },
   }
+
+  static _cacheLength = 21600
 
   static defaultBadgeData = { label: 'pypi' }
 
@@ -26,10 +24,10 @@ export default class PypiVersion extends PypiBase {
     return renderVersionBadge({ version, versionFormatter: pep440VersionColor })
   }
 
-  async handle({ egg }) {
+  async handle({ egg }, { pypiBaseUrl }) {
     const {
       info: { version },
-    } = await this.fetch({ egg })
+    } = await this.fetch({ egg, pypiBaseUrl })
     return this.constructor.render({ version })
   }
 }

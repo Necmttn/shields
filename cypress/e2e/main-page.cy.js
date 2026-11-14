@@ -3,7 +3,7 @@ import { registerCommand } from 'cypress-wait-for-stable-dom'
 registerCommand()
 
 describe('Frontend', function () {
-  const backendUrl = Cypress.env('backend_url')
+  const backendUrl = Cypress.expose('backend_url')
   const SEARCH_INPUT = 'input[placeholder="Search"]'
 
   function visitAndWait(page) {
@@ -16,7 +16,7 @@ describe('Frontend', function () {
 
     cy.get(SEARCH_INPUT).type('pypi')
 
-    cy.contains('PyPI - License')
+    cy.contains('PyPI License')
   })
 
   it('Shows badges from category', function () {
@@ -40,14 +40,14 @@ describe('Frontend', function () {
   })
 
   it('Build a badge', function () {
-    visitAndWait('/badges/git-hub-issues')
+    visitAndWait('/badges/git-hub-license')
 
-    cy.contains('/github/issues/:user/:repo')
+    cy.contains('/github/license/:user/:repo')
 
     cy.get('input[placeholder="user"]').type('badges')
     cy.get('input[placeholder="repo"]').type('shields')
 
-    cy.intercept('GET', `${backendUrl}/github/issues/badges/shields`).as('get')
+    cy.intercept('GET', `${backendUrl}/github/license/badges/shields`).as('get')
     cy.contains('Execute').click()
     cy.wait('@get').its('response.statusCode').should('eq', 200)
     cy.get('img[id="badge-preview"]')

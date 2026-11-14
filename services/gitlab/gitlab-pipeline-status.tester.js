@@ -7,7 +7,7 @@ export const t = new ServiceTester({
 })
 
 t.create('Pipeline status')
-  .get('/pipeline-status/gitlab-org/gitlab.json?branch=v10.7.6')
+  .get('/pipeline-status/gitlab-org/gitlab.json?branch=ruby-next')
   .expectBadge({
     label: 'build',
     message: isBuildStatus,
@@ -45,7 +45,9 @@ t.create('Pipeline status (nonexistent repo)')
   })
 
 t.create('Pipeline status (custom gitlab URL)')
-  .get('/pipeline-status/GNOME/pango.json?gitlab_url=https://gitlab.gnome.org')
+  .get(
+    '/pipeline-status/sdk/kde-builder.json?gitlab_url=https://invent.kde.org&branch=master',
+  )
   .expectBadge({
     label: 'build',
     message: isBuildStatus,
@@ -58,5 +60,5 @@ t.create('Pipeline no branch redirect')
 t.create('Pipeline legacy route with branch redirect')
   .get('/pipeline/gitlab-org/gitlab/v10.7.6?style=flat')
   .expectRedirect(
-    '/gitlab/pipeline-status/gitlab-org/gitlab.svg?branch=v10.7.6&style=flat',
+    '/gitlab/pipeline-status/gitlab-org/gitlab.svg?style=flat&branch=v10.7.6',
   )

@@ -2,13 +2,11 @@
  * @module
  */
 
-// See available emoji at http://emoji.muan.co/
-import emojic from 'emojic'
 import BaseService from './base.js'
 import trace from './trace.js'
 import { InvalidResponse } from './errors.js'
 
-const defaultValueMatcher = />([^<>]+)<\/text><\/g>/
+const defaultValueMatcher = /.*>([^<>]+)<\/text><\/g>/
 const leadingWhitespace = /(?:\r\n\s*|\r\s*|\n\s*)/g
 
 /**
@@ -41,6 +39,8 @@ class BaseSvgScrapingService extends BaseService {
       })
     }
   }
+
+  static headers = { Accept: 'image/svg+xml' }
 
   /**
    * Request data from an endpoint serving SVG,
@@ -79,7 +79,7 @@ class BaseSvgScrapingService extends BaseService {
   }) {
     const logTrace = (...args) => trace.logTrace('fetch', ...args)
     const mergedOptions = {
-      ...{ headers: { Accept: 'image/svg+xml' } },
+      ...{ headers: this.constructor.headers },
       ...options,
     }
     const { buffer } = await this._request({
@@ -89,11 +89,11 @@ class BaseSvgScrapingService extends BaseService {
       systemErrors,
       logErrors,
     })
-    logTrace(emojic.dart, 'Response SVG', buffer)
+    logTrace('🎯', 'Response SVG', buffer)
     const data = {
       message: this.constructor.valueFromSvgBadge(buffer, valueMatcher),
     }
-    logTrace(emojic.dart, 'Response SVG (before validation)', data, {
+    logTrace('🎯', 'Response SVG (before validation)', data, {
       deep: true,
     })
     return this.constructor._validate(data, schema)

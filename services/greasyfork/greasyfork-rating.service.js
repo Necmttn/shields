@@ -5,7 +5,7 @@ import BaseGreasyForkService from './greasyfork-base.js'
 
 export default class GreasyForkRatingCount extends BaseGreasyForkService {
   static category = 'rating'
-  static route = { base: 'greasyfork', pattern: 'rating-count/:scriptId' }
+  static route = { base: 'greasyfork/rating-count', pattern: ':scriptId' }
 
   static openApi = {
     '/greasyfork/rating-count/{scriptId}': {
@@ -13,7 +13,7 @@ export default class GreasyForkRatingCount extends BaseGreasyForkService {
         summary: 'Greasy Fork Rating',
         parameters: pathParams({
           name: 'scriptId',
-          example: '407466',
+          example: '406540',
         }),
       },
     },

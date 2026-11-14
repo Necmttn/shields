@@ -36,8 +36,9 @@ class ScrutinizerBuildBase extends ScrutinizerBase {
 class ScrutinizerBuild extends ScrutinizerBuildBase {
   static route = {
     base: 'scrutinizer/build',
-    pattern: ':vcs(g|b)/:user/:repo/:branch*',
+    pattern: ':vcs/:user/:repo/:branch*',
   }
+  static routeEnum = ['g', 'b']
 
   static openApi = {
     '/scrutinizer/build/{vcs}/{user}/{repo}': {
@@ -47,7 +48,7 @@ class ScrutinizerBuild extends ScrutinizerBuildBase {
           {
             name: 'vcs',
             example: 'g',
-            description: 'Platform: Either Github or Bitbucket',
+            description: 'Platform: Either GitHub or Bitbucket',
             schema: { type: 'string', enum: this.getEnum('vcs') },
           },
           { name: 'user', example: 'filp' },
@@ -62,7 +63,7 @@ class ScrutinizerBuild extends ScrutinizerBuildBase {
           {
             name: 'vcs',
             example: 'g',
-            description: 'Platform: Either Github or Bitbucket',
+            description: 'Platform: Either GitHub or Bitbucket',
             schema: { type: 'string', enum: this.getEnum('vcs') },
           },
           { name: 'user', example: 'filp' },

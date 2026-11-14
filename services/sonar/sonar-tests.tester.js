@@ -26,9 +26,7 @@ const isMetricAllowZero = Joi.alternatives(
 
 t.create('Tests')
   .timeout(10000)
-  .get(
-    '/tests/swellaby:azure-pipelines-templates.json?server=https://sonarcloud.io',
-  )
+  .get('/tests/michelin_kstreamplify.json?server=https://sonarcloud.io')
   .expectBadge({
     label: 'tests',
     message: isDefaultTestTotals,
@@ -36,9 +34,7 @@ t.create('Tests')
 
 t.create('Tests (branch)')
   .timeout(10000)
-  .get(
-    '/tests/swellaby:azure-pipelines-templates/master.json?server=https://sonarcloud.io',
-  )
+  .get('/tests/michelin_kstreamplify/main.json?server=https://sonarcloud.io')
   .expectBadge({
     label: 'tests',
     message: isDefaultTestTotals,
@@ -83,7 +79,7 @@ t.create('Tests (legacy API supported)')
 
 t.create('Tests with compact message')
   .timeout(10000)
-  .get('/tests/swellaby:azure-pipelines-templates.json', {
+  .get('/tests/michelin_kstreamplify.json', {
     qs: {
       compact_message: null,
       server: 'https://sonarcloud.io',
@@ -93,7 +89,7 @@ t.create('Tests with compact message')
 
 t.create('Tests with custom labels')
   .timeout(10000)
-  .get('/tests/swellaby:azure-pipelines-templates.json', {
+  .get('/tests/michelin_kstreamplify.json', {
     qs: {
       server: 'https://sonarcloud.io',
       passed_label: 'good',
@@ -105,7 +101,7 @@ t.create('Tests with custom labels')
 
 t.create('Tests with compact message and custom labels')
   .timeout(10000)
-  .get('/tests/swellaby:azure-pipelines-templates.json', {
+  .get('/tests/michelin_kstreamplify.json', {
     qs: {
       server: 'https://sonarcloud.io',
       compact_message: null,
@@ -121,9 +117,7 @@ t.create('Tests with compact message and custom labels')
 
 t.create('Total Test Count')
   .timeout(10000)
-  .get(
-    '/total_tests/swellaby:azdo-shellcheck.json?server=https://sonarcloud.io',
-  )
+  .get('/total_tests/michelin_kstreamplify.json?server=https://sonarcloud.io')
   .expectBadge({
     label: 'total tests',
     message: isMetric,
@@ -132,7 +126,7 @@ t.create('Total Test Count')
 t.create('Total Test Count (branch)')
   .timeout(10000)
   .get(
-    '/total_tests/swellaby:azdo-shellcheck/master.json?server=https://sonarcloud.io',
+    '/total_tests/michelin_kstreamplify/main.json?server=https://sonarcloud.io',
   )
   .expectBadge({
     label: 'total tests',
@@ -170,9 +164,7 @@ t.create('Total Test Count (legacy API supported)')
 
 t.create('Test Failures Count')
   .timeout(10000)
-  .get(
-    '/test_failures/swellaby:azdo-shellcheck.json?server=https://sonarcloud.io',
-  )
+  .get('/test_failures/michelin_kstreamplify.json?server=https://sonarcloud.io')
   .expectBadge({
     label: 'test failures',
     message: isMetricAllowZero,
@@ -209,9 +201,7 @@ t.create('Test Failures Count (legacy API supported)')
 
 t.create('Test Errors Count')
   .timeout(10000)
-  .get(
-    '/test_errors/swellaby:azdo-shellcheck.json?server=https://sonarcloud.io',
-  )
+  .get('/test_errors/michelin_kstreamplify.json?server=https://sonarcloud.io')
   .expectBadge({
     label: 'test errors',
     message: isMetricAllowZero,
@@ -248,9 +238,7 @@ t.create('Test Errors Count (legacy API supported)')
 
 t.create('Skipped Tests Count')
   .timeout(10000)
-  .get(
-    '/skipped_tests/swellaby:azdo-shellcheck.json?server=https://sonarcloud.io',
-  )
+  .get('/skipped_tests/michelin_kstreamplify.json?server=https://sonarcloud.io')
   .expectBadge({
     label: 'skipped tests',
     message: isMetricAllowZero,
@@ -288,7 +276,7 @@ t.create('Skipped Tests Count (legacy API supported)')
 t.create('Test Success Rate')
   .timeout(10000)
   .get(
-    '/test_success_density/swellaby:azdo-shellcheck.json?server=https://sonarcloud.io',
+    '/test_success_density/michelin_kstreamplify.json?server=https://sonarcloud.io',
   )
   .expectBadge({
     label: 'tests',

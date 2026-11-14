@@ -1,6 +1,6 @@
 import Joi from 'joi'
 import { metric } from '../text-formatters.js'
-import { nonNegativeInteger, optionalUrl } from '../validators.js'
+import { nonNegativeInteger, url } from '../validators.js'
 import { BaseJsonService, queryParams } from '../index.js'
 
 const schemaSingular = Joi.object({
@@ -20,7 +20,7 @@ const schemaPlural = Joi.object({
 const schema = Joi.alternatives(schemaSingular, schemaPlural)
 
 const queryParamSchema = Joi.object({
-  server: optionalUrl.required(),
+  server: url,
 }).required()
 
 function singular(variant) {
@@ -49,9 +49,10 @@ class DiscourseBase extends BaseJsonService {
 class DiscourseMetric extends DiscourseBase {
   static route = {
     base: 'discourse',
-    pattern: ':variant(topics|users|posts|likes)',
+    pattern: ':variant',
     queryParamSchema,
   }
+  static routeEnum = ['topics', 'users', 'posts', 'likes']
 
   static openApi = {
     '/discourse/topics': {

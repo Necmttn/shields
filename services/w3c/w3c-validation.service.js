@@ -1,5 +1,5 @@
 import Joi from 'joi'
-import { optionalUrl } from '../validators.js'
+import { url } from '../validators.js'
 import { BaseJsonService, NotFound, pathParam, queryParam } from '../index.js'
 import {
   description,
@@ -16,7 +16,7 @@ const schema = Joi.object({
     .items(
       Joi.object({
         type: Joi.string()
-          .allow('info', 'error', 'non-document-error')
+          .equal('info', 'error', 'non-document-error')
           .required(),
         subType: Joi.string().optional(),
         message: Joi.string().required(),
@@ -25,7 +25,7 @@ const schema = Joi.object({
 }).required()
 
 const queryParamSchema = Joi.object({
-  targetUrl: optionalUrl.required(),
+  targetUrl: url,
   preset: Joi.string().regex(presetRegex).allow(''),
 }).required()
 
@@ -41,9 +41,10 @@ export default class W3cValidation extends BaseJsonService {
 
   static route = {
     base: 'w3c-validation',
-    pattern: ':parser(default|html|xml|xmldtd)',
+    pattern: ':parser',
     queryParamSchema,
   }
+  static routeEnum = ['default', 'html', 'xml', 'xmldtd']
 
   static openApi = {
     '/w3c-validation/{parser}': {

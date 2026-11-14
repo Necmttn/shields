@@ -4,7 +4,7 @@ import BaseGreasyForkService from './greasyfork-base.js'
 
 export default class GreasyForkVersion extends BaseGreasyForkService {
   static category = 'version'
-  static route = { base: 'greasyfork', pattern: 'v/:scriptId' }
+  static route = { base: 'greasyfork/v', pattern: ':scriptId' }
 
   static openApi = {
     '/greasyfork/v/{scriptId}': {
@@ -12,7 +12,7 @@ export default class GreasyForkVersion extends BaseGreasyForkService {
         summary: 'Greasy Fork Version',
         parameters: pathParams({
           name: 'scriptId',
-          example: '407466',
+          example: '406540',
         }),
       },
     },

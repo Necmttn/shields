@@ -1,5 +1,4 @@
-import { pathParams } from '../index.js'
-import PypiBase from './pypi-base.js'
+import PypiBase, { pypiGeneralParams } from './pypi-base.js'
 import { parseClassifiers } from './pypi-helpers.js'
 
 export default class PypiImplementation extends PypiBase {
@@ -10,14 +9,13 @@ export default class PypiImplementation extends PypiBase {
   static openApi = {
     '/pypi/implementation/{packageName}': {
       get: {
-        summary: 'PyPI - Implementation',
-        parameters: pathParams({
-          name: 'packageName',
-          example: 'Django',
-        }),
+        summary: 'PyPI Implementation',
+        parameters: pypiGeneralParams,
       },
     },
   }
+
+  static _cacheLength = 43200
 
   static defaultBadgeData = { label: 'implementation' }
 
@@ -28,8 +26,8 @@ export default class PypiImplementation extends PypiBase {
     }
   }
 
-  async handle({ egg }) {
-    const packageData = await this.fetch({ egg })
+  async handle({ egg }, { pypiBaseUrl }) {
+    const packageData = await this.fetch({ egg, pypiBaseUrl })
 
     let implementations = parseClassifiers(
       packageData,

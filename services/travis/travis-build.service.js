@@ -1,10 +1,6 @@
 import Joi from 'joi'
 import { isBuildStatus, renderBuildStatusBadge } from '../build-status.js'
-import {
-  BaseSvgScrapingService,
-  deprecatedService,
-  pathParams,
-} from '../index.js'
+import { BaseSvgScrapingService, pathParams } from '../index.js'
 
 const schema = Joi.object({
   message: Joi.alternatives()
@@ -16,9 +12,8 @@ export class TravisComBuild extends BaseSvgScrapingService {
   static category = 'build'
 
   static route = {
-    base: 'travis',
-    format: 'com/(?!php-v)([^/]+/[^/]+?)(?:/(.+?))?',
-    capture: ['userRepo', 'branch'],
+    base: 'travis/com',
+    pattern: ':user/:repo/:branch*',
   }
 
   static openApi = {
@@ -58,11 +53,6 @@ export class TravisComBuild extends BaseSvgScrapingService {
     },
   }
 
-  static staticPreview = {
-    message: 'passing',
-    color: 'brightgreen',
-  }
-
   static defaultBadgeData = {
     label: 'build',
   }
@@ -71,25 +61,13 @@ export class TravisComBuild extends BaseSvgScrapingService {
     return renderBuildStatusBadge({ status })
   }
 
-  async handle({ userRepo, branch }) {
+  async handle({ user, repo, branch }) {
     const { message: status } = await this._requestSvg({
       schema,
-      url: `https://api.travis-ci.com/${userRepo}.svg`,
+      url: `https://api.travis-ci.com/${user}/${repo}.svg`,
       options: { searchParams: { branch } },
-      valueMatcher: />([^<>]+)<\/text><\/g>/,
     })
 
     return this.constructor.render({ status })
   }
 }
-
-export const TravisOrgBuild = deprecatedService({
-  category: 'build',
-  route: {
-    base: 'travis',
-    format: '(?!php-v)([^/]+/[^/]+?)(?:/(.+?))?',
-    capture: ['userRepo', 'branch'],
-  },
-  label: 'build',
-  dateAdded: new Date('2023-05-13'),
-})

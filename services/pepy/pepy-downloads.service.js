@@ -16,8 +16,8 @@ export default class PepyDownloads extends BaseJsonService {
   static category = 'downloads'
 
   static route = {
-    base: 'pepy',
-    pattern: 'dt/:packageName',
+    base: 'pepy/dt',
+    pattern: ':packageName',
   }
 
   static auth = {
@@ -29,7 +29,7 @@ export default class PepyDownloads extends BaseJsonService {
   static openApi = {
     '/pepy/dt/{packageName}': {
       get: {
-        summary: 'Pepy Total Downlods',
+        summary: 'Pepy Total Downloads',
         description,
         parameters: pathParams({
           name: 'packageName',
@@ -39,7 +39,7 @@ export default class PepyDownloads extends BaseJsonService {
     },
   }
 
-  static _cacheLength = 21600
+  static _cacheLength = 28800
 
   static defaultBadgeData = { label: 'downloads' }
 

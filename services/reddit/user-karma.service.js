@@ -1,7 +1,8 @@
 import Joi from 'joi'
 import { anyInteger } from '../validators.js'
 import { metric } from '../text-formatters.js'
-import { BaseJsonService, pathParams } from '../index.js'
+import { pathParams } from '../index.js'
+import RedditBase from './reddit-base.js'
 
 const schema = Joi.object({
   data: Joi.object({
@@ -10,13 +11,12 @@ const schema = Joi.object({
   }).required(),
 }).required()
 
-export default class RedditUserKarma extends BaseJsonService {
-  static category = 'social'
-
+export default class RedditUserKarma extends RedditBase {
   static route = {
     base: 'reddit/user-karma',
-    pattern: ':variant(link|comment|combined)/:user',
+    pattern: ':variant/:user',
   }
+  static routeEnum = ['link', 'comment', 'combined']
 
   static openApi = {
     '/reddit/user-karma/{variant}/{user}': {
@@ -36,8 +36,6 @@ export default class RedditUserKarma extends BaseJsonService {
       },
     },
   }
-
-  static _cacheLength = 7200
 
   static defaultBadgeData = {
     label: 'reddit karma',
@@ -61,7 +59,10 @@ export default class RedditUserKarma extends BaseJsonService {
   async fetch({ user }) {
     return this._requestJson({
       schema,
-      url: `https://www.reddit.com/u/${user}/about.json`,
+      // API requests with a bearer token should be made to https://oauth.reddit.com, NOT www.reddit.com.
+      url: this.authHelper.isConfigured
+        ? `https://oauth.reddit.com/u/${user}/about.json`
+        : `https://www.reddit.com/u/${user}/about.json`,
       httpErrors: {
         404: 'user not found',
       },

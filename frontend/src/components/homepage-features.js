@@ -1,5 +1,4 @@
 import React from 'react'
-import clsx from 'clsx'
 import styles from './homepage-features.module.css'
 
 const FeatureList = [
@@ -59,8 +58,6 @@ const FeatureList = [
         >
           docker image
         </a>
-        <br />
-        <code>docker pull shieldsio/shields</code>
       </>
     ),
   },
@@ -68,15 +65,33 @@ const FeatureList = [
     title: 'Love Shields?',
     description: (
       <>
-        Please consider{' '}
+        Please consider <a href="/donate">donating</a> to sustain our activities
+      </>
+    ),
+  },
+  {
+    title: 'Spread the word',
+    description: (
+      <>
         <a
-          href="https://opencollective.com/shields"
+          href="https://github.com/badges/shields"
           rel="noreferrer"
           target="_blank"
         >
-          donating
-        </a>{' '}
-        to sustain our activities
+          <img
+            alt="Shields.io GitHub stars"
+            src="https://img.shields.io/github/stars/badges/shields"
+          />
+        </a>
+        <br />
+        Increase the project's visibility by adding a star to its{' '}
+        <a
+          href="https://github.com/badges/shields"
+          rel="noreferrer"
+          target="_blank"
+        >
+          GitHub repository
+        </a>
       </>
     ),
   },
@@ -84,7 +99,7 @@ const FeatureList = [
 
 function Feature({ title, description }) {
   return (
-    <div className={clsx('col col--6')}>
+    <div className="col col--6">
       <div className="text--center padding-horiz--md padding-vert--lg">
         <h3>{title}</h3>
         <p>{description}</p>

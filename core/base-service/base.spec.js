@@ -1,22 +1,21 @@
 import Joi from 'joi'
-import chai from 'chai'
+import { expect, use } from 'chai'
 import sinon from 'sinon'
 import prometheus from 'prom-client'
 import chaiAsPromised from 'chai-as-promised'
 import PrometheusMetrics from '../server/prometheus-metrics.js'
+import { pathParam, queryParam } from './openapi.js'
 import trace from './trace.js'
 import {
   NotFound,
   Inaccessible,
   InvalidResponse,
   InvalidParameter,
-  Deprecated,
 } from './errors.js'
 import BaseService from './base.js'
 import { MetricHelper, MetricNames } from './metric-helper.js'
 import '../register-chai-plugins.spec.js'
-const { expect } = chai
-chai.use(chaiAsPromised)
+use(chaiAsPromised)
 
 const queryParamSchema = Joi.object({
   queryParamA: Joi.string(),
@@ -31,14 +30,17 @@ class DummyService extends BaseService {
   static category = 'other'
   static route = { base: 'foo', pattern: ':namedParamA', queryParamSchema }
 
-  static examples = [
-    {
-      pattern: ':world',
-      namedParams: { world: 'World' },
-      staticPreview: this.render({ namedParamA: 'foo', queryParamA: 'bar' }),
-      keywords: ['hello'],
+  static openApi = {
+    '/foo/{namedParamA}': {
+      get: {
+        summary: 'Dummy Service',
+        parameters: [
+          pathParam({ name: 'namedParamA', example: 'foo' }),
+          queryParam({ name: 'queryParamA', example: 'bar' }),
+        ],
+      },
     },
-  ]
+  }
 
   static defaultBadgeData = { label: 'cat', namedLogo: 'appveyor' }
 
@@ -289,21 +291,6 @@ describe('BaseService', function () {
         })
       })
 
-      it('handles Deprecated', async function () {
-        class ThrowingService extends DummyService {
-          async handle() {
-            throw new Deprecated()
-          }
-        }
-        expect(
-          await ThrowingService.invoke({}, {}, { namedParamA: 'bar.bar.bar' }),
-        ).to.deep.equal({
-          isError: true,
-          color: 'lightgray',
-          message: 'no longer available',
-        })
-      })
-
       it('handles InvalidParameter errors', async function () {
         class ThrowingService extends DummyService {
           async handle() {
@@ -322,7 +309,6 @@ describe('BaseService', function () {
   })
 
   describe('ScoutCamp integration', function () {
-    // TODO Strangely, without the useless escape the regexes do not match in Node 12.
     // eslint-disable-next-line no-useless-escape
     const expectedRouteRegex = /^\/foo(?:\/([^\/#\?]+?))(|\.svg|\.json)$/
 
@@ -373,7 +359,7 @@ describe('BaseService', function () {
         namedLogo: undefined,
         logo: undefined,
         logoWidth: undefined,
-        logoPosition: undefined,
+        logoSize: undefined,
         links: [],
         labelColor: undefined,
         cacheLengthSeconds: undefined,
@@ -383,24 +369,24 @@ describe('BaseService', function () {
 
   describe('getDefinition', function () {
     it('returns the expected result', function () {
-      const { category, name, isDeprecated, route, examples } =
+      const { category, name, isRetired, route, openApi } =
         DummyService.getDefinition()
       expect({
         category,
         name,
-        isDeprecated,
+        isRetired,
         route,
       }).to.deep.equal({
         category: 'other',
         name: 'DummyService',
-        isDeprecated: false,
+        isRetired: false,
         route: {
           pattern: '/foo/:namedParamA',
           queryParams: ['queryParamA', 'legacyQueryParamA'],
         },
       })
       // The in-depth tests for examples reside in examples.spec.js
-      expect(examples).to.have.lengthOf(1)
+      expect(Object.keys(openApi)).to.have.lengthOf(1)
     })
   })
 
@@ -630,6 +616,105 @@ describe('BaseService', function () {
 
       expect(() => FormatService.getEnum('notAValidParam')).to.throw(
         'getEnum() requires route to have a .pattern property',
+      )
+    })
+
+    it('returns routeEnum when set', function () {
+      class RouteEnumService extends DummyService {
+        static route = {
+          base: 'foo',
+          pattern: ':namedParamA',
+          queryParamSchema,
+        }
+        static routeEnum = ['alpha', 'beta']
+      }
+
+      expect(RouteEnumService.getEnum('namedParamA')).to.deep.equal([
+        'alpha',
+        'beta',
+      ])
+    })
+
+    it('invoke rejects first named param not in routeEnum', async function () {
+      class RouteEnumService extends DummyService {
+        static route = {
+          base: 'foo',
+          pattern: ':namedParamA',
+          queryParamSchema,
+        }
+        static routeEnum = ['alpha', 'beta']
+      }
+
+      const result = await RouteEnumService.invoke({}, defaultConfig, {
+        namedParamA: 'gamma',
+      })
+      expect(result).to.deep.equal({
+        isError: true,
+        color: 'red',
+        message: 'invalid parameter namedParamA: gamma',
+      })
+    })
+
+    it('invoke allows first named param present in routeEnum', async function () {
+      class RouteEnumService extends DummyService {
+        static route = {
+          base: 'foo',
+          pattern: ':namedParamA',
+          queryParamSchema,
+        }
+        static routeEnum = ['alpha', 'beta']
+      }
+
+      const result = await RouteEnumService.invoke({}, defaultConfig, {
+        namedParamA: 'alpha',
+      })
+      expect(result).to.deep.equal({
+        message: 'Hello namedParamA: alpha with queryParamA: undefined',
+      })
+    })
+
+    it('throws when routeEnum is not a non-empty array of strings (not an array)', function () {
+      class BadRouteEnumService extends DummyService {
+        static route = {
+          base: 'foo',
+          pattern: ':namedParamA',
+          queryParamSchema,
+        }
+        static routeEnum = { alpha: true }
+      }
+
+      expect(() => BadRouteEnumService.getEnum('namedParamA')).to.throw(
+        `getEnum() requires routeEnum for ${BadRouteEnumService.name} to be a non-empty array of strings`,
+      )
+    })
+
+    it('throws when routeEnum is an empty array', function () {
+      class BadRouteEnumService extends DummyService {
+        static route = {
+          base: 'foo',
+          pattern: ':namedParamA',
+          queryParamSchema,
+        }
+        static routeEnum = []
+      }
+
+      expect(() => BadRouteEnumService.getEnum('namedParamA')).to.throw(
+        `getEnum() requires routeEnum for ${BadRouteEnumService.name} to be a non-empty array of strings`,
+      )
+    })
+
+    it('throws when routeEnum contains non-string values', function () {
+      class BadRouteEnumService extends DummyService {
+        static route = {
+          base: 'foo',
+          pattern: ':namedParamA',
+          queryParamSchema,
+        }
+        static routeEnum = ['alpha', 42]
+      }
+
+      expect(() => BadRouteEnumService.getEnum('namedParamA')).to.throw(
+        `getEnum() requires routeEnum for ${BadRouteEnumService.name} to be a non-empty array of strings`,
       )
     })
   })

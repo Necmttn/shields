@@ -14,8 +14,8 @@ describe('Redirector', function () {
   const dateAdded = new Date()
   const attrs = { category, route, transformPath, dateAdded }
 
-  it('returns true on isDeprecated', function () {
-    expect(redirector(attrs).isDeprecated).to.be.true
+  it('returns true on isRetired', function () {
+    expect(redirector(attrs).isRetired).to.be.true
   })
 
   it('has the expected name', function () {
@@ -43,24 +43,6 @@ describe('Redirector', function () {
     expect(() =>
       redirector({ route, category, transformPath }).validateDefinition(),
     ).to.throw('"dateAdded" is required')
-  })
-
-  it('sets specified example', function () {
-    const examples = [
-      {
-        title: 'very old service',
-        pattern: ':namedParamA',
-        namedParams: {
-          namedParamA: 'namedParamAValue',
-        },
-        staticPreview: {
-          label: 'service',
-          message: 'v0.14.0',
-          color: 'blue',
-        },
-      },
-    ]
-    expect(redirector({ ...attrs, examples }).examples).to.equal(examples)
   })
 
   describe('ScoutCamp integration', function () {
@@ -234,7 +216,7 @@ describe('Redirector', function () {
 
         expect(statusCode).to.equal(301)
         expect(headers.location).to.equal(
-          '/new/service/hello-world.svg?style=flat-square&token=def456',
+          '/new/service/hello-world.svg?token=def456&style=flat-square',
         )
       })
     })

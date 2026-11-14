@@ -7,7 +7,7 @@ import {
 const description = `
 ${cratesIoDescription}
 
-MSRV is a crate's minimum suppported rust version,
+MSRV is a crate's minimum supported rust version,
 the oldest version of Rust supported by the crate.
 See the [Cargo Book](https://doc.rust-lang.org/cargo/reference/manifest.html#the-rust-version-field)
 for more info.
@@ -49,10 +49,12 @@ export default class CratesMSRV extends BaseCratesService {
     },
   }
 
+  static _cacheLength = 3600 // We're hitting the API more frequently than requested by upstream maintainers (see https://github.com/badges/shields/issues/11879).
+
   static defaultBadgeData = { label: 'msrv', color: 'blue' }
 
-  static transform({ version, versions }) {
-    const msrv = version ? version.rust_version : versions[0].rust_version
+  static transform(response) {
+    const msrv = this.getVersionObj(response).rust_version
     if (!msrv) {
       throw new NotFound({ prettyMessage: 'unknown' })
     }

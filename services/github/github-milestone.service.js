@@ -16,8 +16,10 @@ export default class GithubMilestone extends GithubAuthV3Service {
   static category = 'issue-tracking'
   static route = {
     base: 'github/milestones',
-    pattern: ':variant(open|closed|all)/:user/:repo',
+    pattern: ':variant/:user/:repo',
   }
+
+  static routeEnum = ['open', 'closed', 'all']
 
   static openApi = {
     '/github/milestones/{variant}/{user}/{repo}': {
@@ -48,7 +50,7 @@ export default class GithubMilestone extends GithubAuthV3Service {
     color: 'informational',
   }
 
-  static render({ user, repo, variant, milestones }) {
+  static render({ variant, milestones }) {
     const milestoneLength = milestones.length
     let color
     let qualifier = ''
@@ -84,6 +86,6 @@ export default class GithubMilestone extends GithubAuthV3Service {
 
   async handle({ user, repo, variant }) {
     const milestones = await this.fetch({ user, repo, variant })
-    return this.constructor.render({ user, repo, variant, milestones })
+    return this.constructor.render({ variant, milestones })
   }
 }

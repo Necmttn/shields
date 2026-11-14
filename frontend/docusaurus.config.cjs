@@ -1,5 +1,6 @@
 const lightCodeTheme = require('prism-react-renderer').themes.github
 const darkCodeTheme = require('prism-react-renderer').themes.dracula
+const stripCodeBlockLinks = require('./src/plugins/strip-code-block-links')
 
 /** @type {import('@docusaurus/types').Config} */
 const config = {
@@ -8,7 +9,6 @@ const config = {
   url: 'https://shields.io',
   baseUrl: '/',
   onBrokenLinks: 'throw',
-  onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
   organizationName: 'badges',
   projectName: 'shields',
@@ -24,6 +24,17 @@ const config = {
     ],
   ],
 
+  markdown: {
+    mdx1Compat: {
+      comments: true,
+      admonitions: true,
+      headingIds: true,
+    },
+    hooks: {
+      onBrokenMarkdownLinks: 'warn',
+    },
+  },
+
   presets: [
     [
       'docusaurus-preset-openapi',
@@ -36,6 +47,8 @@ const config = {
         blog: {
           showReadingTime: true,
           editUrl: 'https://github.com/badges/shields/tree/master/frontend',
+          onInlineAuthors: 'ignore',
+          onUntruncatedBlogPosts: 'ignore',
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
@@ -43,6 +56,7 @@ const config = {
         api: {
           path: 'categories',
           routeBasePath: 'badges',
+          rehypePlugins: [stripCodeBlockLinks],
         },
       }),
     ],
@@ -51,6 +65,7 @@ const config = {
   themeConfig:
     /** @type {import('docusaurus-preset-openapi').ThemeConfig} */
     ({
+      image: 'img/opengraph.png',
       languageTabs: [],
       navbar: {
         title: 'Shields.io',
@@ -65,6 +80,7 @@ const config = {
             label: 'Documentation',
             position: 'left',
           },
+          { to: '/donate', label: 'Donate', position: 'left' },
           { to: '/community', label: 'Community', position: 'left' },
           { to: '/blog', label: 'Blog', position: 'left' },
           {
@@ -75,7 +91,6 @@ const config = {
         ],
       },
       footer: {
-        style: 'dark',
         links: [
           {
             title: 'Community',
@@ -96,18 +111,48 @@ const config = {
                 label: 'Awesome Badges',
                 href: 'https://github.com/badges/awesome-badges',
               },
+              {
+                label: 'Endpoint Badges Directory',
+                href: 'https://github.com/badges/endpoint-badges-directory',
+              },
+            ],
+          },
+          {
+            title: 'Projects',
+            items: [
+              {
+                label: 'Badge3D',
+                href: 'https://3d.shields.io',
+              },
+              {
+                label: 'Badge Beadgrid',
+                href: 'https://beads.shields.io',
+              },
             ],
           },
           {
             title: 'Stats',
             items: [
               {
-                label: 'Service Status',
-                href: 'https://stats.uptimerobot.com/PjXogHB5p',
+                label: 'Service Status (Upptime)',
+                href: 'https://badges.github.io/uptime-monitoring/',
+              },
+              {
+                label: 'Service Status (NodePing)',
+                href: 'https://nodeping.com/reports/status/YBISBQB254',
               },
               {
                 label: 'Metrics dashboard',
                 href: 'https://metrics.shields.io/',
+              },
+            ],
+          },
+          {
+            title: 'Policy',
+            items: [
+              {
+                label: 'Privacy Policy',
+                href: '/privacy',
               },
             ],
           },

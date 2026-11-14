@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react'
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext'
-import clsx from 'clsx'
 import codegen from 'postman-code-generators'
 import { Highlight } from 'prism-react-renderer'
 import { useTypedSelector } from '@theme/ApiDemoPanel/hooks'
@@ -224,16 +223,17 @@ function Curl({ postman, codeSamples }) {
 
   return (
     <>
-      <div className={clsx(styles.buttonGroup, 'api-code-tab-group')}>
+      <div className={`${styles.buttonGroup} api-code-tab-group`}>
         {langs.map(lang => (
           <button
-            className={clsx(
-              language === lang ? styles.selected : undefined,
-              language === lang ? 'api-code-tab--active' : undefined,
-              'api-code-tab',
-            )}
+            className={
+              language === lang
+                ? `${styles.selected} api-code-tab--active api-code-tab`
+                : 'api-code-tab'
+            }
             key={lang.tabName || lang.label}
             onClick={() => setLanguage(lang)}
+            type="button"
           >
             {lang.tabName || lang.label}
           </button>
@@ -260,7 +260,6 @@ function Curl({ postman, codeSamples }) {
                 {tokens.map((line, i) => (
                   // this <span> does have a key but eslint fails
                   // to detect it because it is an arg to getLineProps()
-                  // eslint-disable-next-line react/jsx-key
                   <span
                     {...getLineProps({
                       line,
@@ -275,7 +274,6 @@ function Curl({ postman, codeSamples }) {
                       return (
                         // this <span> does have a key but eslint fails
                         // to detect it because it is an arg to getLineProps()
-                        // eslint-disable-next-line react/jsx-key
                         <span
                           {...getTokenProps({
                             token,

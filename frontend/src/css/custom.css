@@ -23,7 +23,7 @@
   padding: 0 var(--ifm-pre-padding);
 }
 
-html[data-theme="dark"] .docusaurus-highlight-code-line {
+html[data-theme='dark'] .docusaurus-highlight-code-line {
   background-color: rgba(0, 0, 0, 0.3);
 }
 
@@ -31,22 +31,27 @@ html[data-theme="dark"] .docusaurus-highlight-code-line {
   color-scheme: initial;
 }
 
-/*
-TODO: remove these three styles when
-we can upgrade to docusaurus-theme-openapi@0.6.5
-*/
-
-input[type="text"], :not(#fakeID#fakeId#fakeID) select {
-  border-color: var(--ifm-color-primary-lightest);
-  border-style: solid;
-  border-width: 1px;
+.flex-column-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
-div.api-code-tab-group {
-  justify-content: center;
-  flex-wrap: wrap;
+.align-bottom {
+  margin-top: auto;
 }
 
-div.api-code-tab-group button.api-code-tab  {
-  width: unset;
+/**
+ * Make the badge builder sticky when you scroll down the page.
+ * Only apply this on desktop, which has a multi-column layout.
+ * 997px is Docusaurus's desktop breakpoint (--ifm-breakpoint-md).
+ */
+@media (min-width: 997px) {
+  .row > .col.col--5 {
+    position: sticky;
+    top: calc(var(--ifm-navbar-height) + 1rem);
+    max-height: calc(100vh - var(--ifm-navbar-height));
+    overflow-y: auto;
+    align-self: flex-start;
+  }
 }

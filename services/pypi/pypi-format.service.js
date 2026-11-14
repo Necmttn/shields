@@ -1,5 +1,4 @@
-import { pathParams } from '../index.js'
-import PypiBase from './pypi-base.js'
+import PypiBase, { pypiGeneralParams } from './pypi-base.js'
 import { getPackageFormats } from './pypi-helpers.js'
 
 export default class PypiFormat extends PypiBase {
@@ -10,14 +9,13 @@ export default class PypiFormat extends PypiBase {
   static openApi = {
     '/pypi/format/{packageName}': {
       get: {
-        summary: 'PyPI - Format',
-        parameters: pathParams({
-          name: 'packageName',
-          example: 'Django',
-        }),
+        summary: 'PyPI Format',
+        parameters: pypiGeneralParams,
       },
     },
   }
+
+  static _cacheLength = 43200
 
   static defaultBadgeData = { label: 'format' }
 
@@ -40,8 +38,8 @@ export default class PypiFormat extends PypiBase {
     }
   }
 
-  async handle({ egg }) {
-    const packageData = await this.fetch({ egg })
+  async handle({ egg }, { pypiBaseUrl }) {
+    const packageData = await this.fetch({ egg, pypiBaseUrl })
     const { hasWheel, hasEgg } = getPackageFormats(packageData)
     return this.constructor.render({ hasWheel, hasEgg })
   }

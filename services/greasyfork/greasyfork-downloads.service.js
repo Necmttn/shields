@@ -4,7 +4,8 @@ import BaseGreasyForkService from './greasyfork-base.js'
 
 export default class GreasyForkInstalls extends BaseGreasyForkService {
   static category = 'downloads'
-  static route = { base: 'greasyfork', pattern: ':variant(dt|dd)/:scriptId' }
+  static route = { base: 'greasyfork', pattern: ':variant/:scriptId' }
+  static routeEnum = ['dt', 'dd']
 
   static openApi = {
     '/greasyfork/{variant}/{scriptId}': {
@@ -19,7 +20,7 @@ export default class GreasyForkInstalls extends BaseGreasyForkService {
           },
           {
             name: 'scriptId',
-            example: '407466',
+            example: '406540',
           },
         ),
       },

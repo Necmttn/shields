@@ -32,8 +32,9 @@ export default class SourceforgeDownloads extends BaseJsonService {
 
   static route = {
     base: 'sourceforge',
-    pattern: ':interval(dd|dw|dm|dt)/:project/:folder*',
+    pattern: ':interval/:project/:folder*',
   }
+  static routeEnum = ['dd', 'dw', 'dm', 'dt']
 
   static openApi = {
     '/sourceforge/{interval}/{project}': {
@@ -66,6 +67,8 @@ export default class SourceforgeDownloads extends BaseJsonService {
       },
     },
   }
+
+  static _cacheLength = 2400
 
   static defaultBadgeData = { label: 'sourceforge' }
 

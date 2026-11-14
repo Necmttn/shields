@@ -35,19 +35,23 @@ const endpointSchema = Joi.object({
   namedLogo: Joi.string(),
   logoSvg: Joi.string(),
   logoColor: optionalStringWhenNamedLogoPresent,
-  logoWidth: optionalNumberWhenAnyLogoPresent,
-  logoPosition: optionalNumberWhenAnyLogoPresent,
+  logoSize: optionalStringWhenNamedLogoPresent,
   style: Joi.string(),
   cacheSeconds: Joi.number().integer().min(0),
+  /*
+  Retained for legacy compatibility
+  Although this does nothing,
+  passing it should not throw an error
+  */
+  logoPosition: optionalNumberWhenAnyLogoPresent,
+  logoWidth: optionalNumberWhenAnyLogoPresent,
 })
   // `namedLogo` or `logoSvg`; not both.
   .oxor('namedLogo', 'logoSvg')
   .required()
 
 /**
- * Strictly validate the data according to the endpoint schema.
- * This rejects unknown/invalid keys.
- * Optionally it prints those keys in the message to provide detailed feedback.
+ * Validate the data according to the endpoint schema.
  *
  * @param {object} data Object containing the data for validation
  * @param {object} attrs Refer to individual attributes
@@ -67,7 +71,6 @@ function validateEndpointData(
       includeKeys,
       traceErrorMessage: 'Response did not match schema',
       traceSuccessMessage: 'Response after validation',
-      allowAndStripUnknownKeys: false,
     },
     data,
     endpointSchema,
@@ -96,7 +99,7 @@ async function fetchEndpointData(
     url,
     httpErrors,
     logErrors: [],
-    options: { decompress: true },
+    options: { decompress: true, timeout: { request: 3500 } },
   })
   return validateEndpointData(json, {
     prettyErrorMessage: validationPrettyErrorMessage,

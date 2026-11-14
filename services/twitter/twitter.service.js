@@ -1,9 +1,9 @@
 import Joi from 'joi'
-import { optionalUrl } from '../validators.js'
+import { url } from '../validators.js'
 import { BaseService, pathParams, queryParams } from '../index.js'
 
 const queryParamSchema = Joi.object({
-  url: optionalUrl.required(),
+  url,
 }).required()
 
 class TwitterUrl extends BaseService {
@@ -41,8 +41,8 @@ class TwitterUrl extends BaseService {
       message: '',
       style: 'social',
       link: [
-        `https://twitter.com/intent/tweet?text=Wow:&url=${page}`,
-        `https://twitter.com/search?q=${page}`,
+        `https://x.com/intent/tweet?text=Wow:&url=${page}`,
+        `https://x.com/search?q=${page}`,
       ],
     }
   }
@@ -54,7 +54,7 @@ This badge is unusual.
 We don't usually host badges that don't show any dynamic information.
 Also when an upstream API is removed, we usually deprecate/remove badges
 according to the process in
-https://github.com/badges/shields/blob/master/doc/deprecating-badges.md
+https://github.com/badges/shields/blob/master/doc/retiring-badges.md
 
 In the case of twitter, we decided to provide a static fallback instead
 due to how widely used the badge was. See
@@ -90,9 +90,7 @@ class TwitterFollow extends BaseService {
       message: '',
       style: 'social',
       link: [
-        `https://twitter.com/intent/follow?screen_name=${encodeURIComponent(
-          user,
-        )}`,
+        `https://x.com/intent/follow?screen_name=${encodeURIComponent(user)}`,
       ],
     }
   }

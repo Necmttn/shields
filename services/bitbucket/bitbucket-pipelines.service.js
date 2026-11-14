@@ -1,6 +1,11 @@
 import Joi from 'joi'
 import { renderBuildStatusBadge } from '../build-status.js'
-import { BaseJsonService, redirector, pathParams } from '../index.js'
+import {
+  BaseJsonService,
+  redirector,
+  pathParams,
+  InvalidResponse,
+} from '../index.js'
 
 const bitbucketPipelinesSchema = Joi.object({
   values: Joi.array()
@@ -16,7 +21,10 @@ const bitbucketPipelinesSchema = Joi.object({
               'STOPPED',
               'EXPIRED',
             ),
-          }).required(),
+          }),
+          stage: Joi.object({
+            name: Joi.string().required(),
+          }),
         }).required(),
       }),
     )
@@ -37,15 +45,15 @@ class BitbucketPipelines extends BaseJsonService {
         parameters: pathParams(
           {
             name: 'user',
-            example: 'atlassian',
+            example: 'shields-io',
           },
           {
             name: 'repo',
-            example: 'adf-builder-javascript',
+            example: 'test-repo',
           },
           {
             name: 'branch',
-            example: 'task/SECO-2168',
+            example: 'main',
           },
         ),
       },
@@ -82,7 +90,18 @@ class BitbucketPipelines extends BaseJsonService {
       value => value.state && value.state.name === 'COMPLETED',
     )
     if (values.length > 0) {
+      if (!values[0].state?.result?.name) {
+        throw new InvalidResponse({ prettyMessage: 'invalid response data' })
+      }
       return values[0].state.result.name
+    }
+    const inProgress = data.values.filter(
+      value => value.state && value.state.name === 'IN_PROGRESS',
+    )
+    if (inProgress.length > 0 && inProgress[0].state?.stage?.name) {
+      // e.g: a pipeline HALTED because the account ran out of build minutes
+      // https://github.com/badges/shields/issues/9096
+      return inProgress[0].state.stage.name.toLowerCase()
     }
     return 'never built'
   }

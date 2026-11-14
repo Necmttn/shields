@@ -2,8 +2,6 @@
  * @module
  */
 
-// See available emoji at http://emoji.muan.co/
-import emojic from 'emojic'
 import { XMLParser, XMLValidator } from 'fast-xml-parser'
 import BaseService from './base.js'
 import trace from './trace.js'
@@ -15,6 +13,8 @@ import { InvalidResponse } from './errors.js'
  * @abstract
  */
 class BaseXmlService extends BaseService {
+  static headers = { Accept: 'application/xml, text/xml' }
+
   /**
    * Request data from an upstream API serving XML,
    * parse it and validate against a schema
@@ -53,7 +53,7 @@ class BaseXmlService extends BaseService {
   }) {
     const logTrace = (...args) => trace.logTrace('fetch', ...args)
     const mergedOptions = {
-      ...{ headers: { Accept: 'application/xml, text/xml' } },
+      ...{ headers: this.constructor.headers },
       ...options,
     }
     const { buffer } = await this._request({
@@ -72,7 +72,7 @@ class BaseXmlService extends BaseService {
     }
     const parser = new XMLParser(parserOptions)
     const xml = parser.parse(buffer)
-    logTrace(emojic.dart, 'Response XML (before validation)', xml, {
+    logTrace('🎯', 'Response XML (before validation)', xml, {
       deep: true,
     })
     return this.constructor._validate(xml, schema)

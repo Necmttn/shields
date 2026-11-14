@@ -14,7 +14,7 @@ const hexSchema = Joi.object({
   meta: Joi.object({
     licenses: Joi.array().required(),
   }).required(),
-  latest_stable_version: Joi.string(),
+  latest_stable_version: Joi.string().allow(null),
   latest_version: Joi.string().required(),
 }).required()
 
@@ -127,8 +127,9 @@ class HexPmDownloads extends BaseHexPmService {
 
   static route = {
     base: 'hexpm',
-    pattern: ':interval(dd|dw|dt)/:packageName',
+    pattern: ':interval/:packageName',
   }
+  static routeEnum = ['dd', 'dw', 'dt']
 
   static openApi = {
     '/hexpm/{interval}/{packageName}': {

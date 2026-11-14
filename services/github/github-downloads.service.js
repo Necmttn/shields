@@ -12,6 +12,7 @@ const queryParamSchema = Joi.object({
   sort: Joi.string()
     .valid(...sortEnum)
     .default('date'),
+  displayAssetName: Joi.boolean().default(true),
 }).required()
 
 const releaseSchema = Joi.object({
@@ -41,6 +42,12 @@ const assetNameParam = pathParam({
   name: 'assetName',
   example: 'atom-amd64.deb',
 })
+const displayAssetNameParam = queryParam({
+  name: 'displayAssetName',
+  example: 'false',
+  schema: { type: 'boolean' },
+  description: 'Whether to display the asset name in the badge value',
+})
 const sortParam = queryParam({
   name: 'sort',
   example: 'semver',
@@ -52,9 +59,11 @@ export default class GithubDownloads extends GithubAuthV3Service {
   static category = 'downloads'
   static route = {
     base: 'github',
-    pattern: ':variant(downloads|downloads-pre)/:user/:repo/:tag*/:assetName',
+    pattern: ':variant/:user/:repo/:tag*/:assetName',
     queryParamSchema,
   }
+
+  static routeEnum = ['downloads', 'downloads-pre']
 
   static openApi = {
     '/github/downloads/{user}/{repo}/total': {
@@ -82,7 +91,12 @@ export default class GithubDownloads extends GithubAuthV3Service {
       get: {
         summary: 'GitHub Downloads (specific asset, all releases)',
         description: documentation,
-        parameters: [userParam, repoParam, assetNameParam],
+        parameters: [
+          userParam,
+          repoParam,
+          assetNameParam,
+          displayAssetNameParam,
+        ],
       },
     },
     '/github/{variant}/{user}/{repo}/latest/{assetName}': {
@@ -94,6 +108,7 @@ export default class GithubDownloads extends GithubAuthV3Service {
           userParam,
           repoParam,
           assetNameParam,
+          displayAssetNameParam,
           sortParam,
         ],
       },
@@ -102,16 +117,27 @@ export default class GithubDownloads extends GithubAuthV3Service {
       get: {
         summary: 'GitHub Downloads (specific asset, specific tag)',
         description: documentation,
-        parameters: [userParam, repoParam, tagParam, assetNameParam],
+        parameters: [
+          userParam,
+          repoParam,
+          tagParam,
+          assetNameParam,
+          displayAssetNameParam,
+        ],
       },
     },
   }
 
-  static defaultBadgeData = { label: 'downloads', namedLogo: 'github' }
+  static defaultBadgeData = { label: 'downloads' }
 
-  static render({ tag: version, assetName, downloads }) {
+  static render({
+    tag: version,
+    assetName,
+    downloads,
+    displayAssetName = true,
+  }) {
     const messageSuffixOverride =
-      assetName !== 'total' ? `[${assetName}]` : undefined
+      assetName !== 'total' && displayAssetName ? `[${assetName}]` : undefined
     return renderDownloadsBadge({ downloads, messageSuffixOverride, version })
   }
 
@@ -134,7 +160,10 @@ export default class GithubDownloads extends GithubAuthV3Service {
     return { downloads }
   }
 
-  async handle({ variant, user, repo, tag, assetName }, { sort }) {
+  async handle(
+    { variant, user, repo, tag, assetName },
+    { sort, displayAssetName },
+  ) {
     let releases
     if (tag === 'latest') {
       const includePre = variant === 'downloads-pre' || undefined
@@ -170,6 +199,11 @@ export default class GithubDownloads extends GithubAuthV3Service {
       assetName,
     })
 
-    return this.constructor.render({ tag, assetName, downloads })
+    return this.constructor.render({
+      tag,
+      assetName,
+      downloads,
+      displayAssetName,
+    })
   }
 }

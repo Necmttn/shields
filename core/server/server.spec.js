@@ -1,5 +1,6 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { execFileSync } from 'node:child_process'
 import { expect } from 'chai'
 import isSvg from 'is-svg'
 import config from 'config'
@@ -59,8 +60,17 @@ describe('The server', function () {
       expect(headers['cache-control']).to.equal('max-age=300, s-maxage=300')
     })
 
-    it('should serve badges with custom maxAge', async function () {
+    it('should serve static badges without logo with maxAge=432000', async function () {
       const { headers } = await got(`${baseUrl}badge/foo-bar-blue`)
+      expect(headers['cache-control']).to.equal(
+        'max-age=432000, s-maxage=432000',
+      )
+    })
+
+    it('should serve badges with with logo with maxAge=86400', async function () {
+      const { headers } = await got(
+        `${baseUrl}badge/foo-bar-blue?logo=javascript`,
+      )
       expect(headers['cache-control']).to.equal('max-age=86400, s-maxage=86400')
     })
 
@@ -70,6 +80,7 @@ describe('The server', function () {
       )
       expect(statusCode).to.equal(200)
       expect(headers['access-control-allow-origin']).to.equal('*')
+      expect(headers['cross-origin-resource-policy']).to.equal('cross-origin')
     })
 
     it('should redirect colorscheme PNG badges as configured', async function () {
@@ -109,7 +120,7 @@ describe('The server', function () {
       )
       expect(statusCode).to.equal(200)
       expect(headers['content-type']).to.equal('image/svg+xml;charset=utf-8')
-      expect(headers['content-length']).to.equal('1130')
+      expect(headers['content-length']).to.equal('1275')
     })
 
     it('correctly calculates the content-length header for multi-byte unicode characters', async function () {
@@ -124,8 +135,30 @@ describe('The server', function () {
       expect(statusCode).to.equal(200)
       expect(headers['content-type']).to.equal('application/json')
       expect(headers['access-control-allow-origin']).to.equal('*')
+      expect(headers['cross-origin-resource-policy']).to.equal('cross-origin')
       expect(headers['content-length']).to.equal('92')
       expect(() => JSON.parse(body)).not.to.throw()
+    })
+
+    describe('Content Security Policy', function () {
+      it('should disable javascript when serving SVG content (no extension)', async function () {
+        const { headers } = await got(`${baseUrl}:fruit-apple-green`)
+        expect(headers['content-security-policy']).to.equal(
+          "script-src 'none';",
+        )
+      })
+
+      it('should disable javascript when serving SVG content (with extension)', async function () {
+        const { headers } = await got(`${baseUrl}:fruit-apple-green.svg`)
+        expect(headers['content-security-policy']).to.equal(
+          "script-src 'none';",
+        )
+      })
+
+      it('should not send content security headers when serving JSON content', async function () {
+        const { headers } = await got(`${baseUrl}:fruit-apple-green.json`)
+        expect(headers).not.to.have.property('content-security-policy')
+      })
     })
 
     it('should preserve label case', async function () {
@@ -175,21 +208,21 @@ describe('The server', function () {
           throwHttpErrors: false,
         },
       )
-      expect(statusCode).to.equal(404)
+      expect(statusCode).to.equal(200)
       expect(body)
         .to.satisfy(isSvg)
         .and.to.include('404')
         .and.to.include('badge not found')
     })
 
-    it('should return the 404 badge page for rando links', async function () {
+    it('should return the 404 badge page for random links', async function () {
       const { statusCode, body } = await got(
         `${baseUrl}this/is/most/definitely/not/a/badge.js`,
         {
           throwHttpErrors: false,
         },
       )
-      expect(statusCode).to.equal(404)
+      expect(statusCode).to.equal(200)
       expect(body)
         .to.satisfy(isSvg)
         .and.to.include('404')
@@ -206,6 +239,17 @@ describe('The server', function () {
       expect(headers.location).to.equal('http://frontend.example.test')
     })
 
+    it('should return the 404 page with empty response for favicon.icon', async function () {
+      const { statusCode, body, headers } = await got(`${baseUrl}favicon.ico`, {
+        throwHttpErrors: false,
+      })
+      expect(statusCode).to.equal(404)
+      expect(body).to.equal('')
+      expect(headers['cache-control']).to.equal(
+        'public, max-age=31536000, s-maxage=31536000, immutable',
+      )
+    })
+
     it('should return the 410 badge for obsolete formats', async function () {
       const { statusCode, body } = await got(
         `${baseUrl}badge/foo-bar-blue.jpg`,
@@ -213,7 +257,6 @@ describe('The server', function () {
           throwHttpErrors: false,
         },
       )
-      // TODO It would be nice if this were 404 or 410.
       expect(statusCode).to.equal(200)
       expect(body)
         .to.satisfy(isSvg)
@@ -336,7 +379,138 @@ describe('The server', function () {
     })
   })
 
+  describe('`dynamicAndEndpointBadgesEnabled` setting', function () {
+    let server
+    const expectJsonBadge = (body, expected) =>
+      expect(JSON.parse(body)).to.include(expected)
+    afterEach(async function () {
+      if (server) {
+        await server.stop()
+      }
+      nock.cleanAll()
+    })
+    it('should only disable Dynamic and Endpoint badge routes', async function () {
+      const upstream = nock('https://example.test')
+        .persist()
+        .get(/.*/)
+        .reply(200)
+
+      server = await createTestServer({
+        public: { dynamicAndEndpointBadgesEnabled: false },
+      })
+      await server.start()
+      const openEndedPaths = [
+        ...['json', 'regex', 'toml', 'xml', 'yaml'].map(
+          format =>
+            `badge/dynamic/${format}.json?url=https%3A%2F%2Fexample.test%2Fdynamic&query=%24.secret`,
+        ),
+        'endpoint.json?url=https%3A%2F%2Fexample.test%2Fendpoint',
+        'badge/endpoint.json?url=https%3A%2F%2Fexample.test%2Fendpoint',
+      ]
+      const openEndedResponses = await Promise.all(
+        openEndedPaths.map(path => got(`${server.baseUrl}${path}`)),
+      )
+
+      openEndedResponses.forEach(({ body }) =>
+        expectJsonBadge(body, {
+          label: '404',
+          message: 'badge not found',
+        }),
+      )
+      expect(upstream.isDone()).to.equal(false)
+
+      const { body } = await got(`${server.baseUrl}badge/foo-bar-blue.json`)
+      expectJsonBadge(body, { label: 'foo', message: 'bar' })
+    })
+
+    it('should keep Dynamic and Endpoint badge routes enabled by default', async function () {
+      nock('https://example.test')
+        .get('/dynamic')
+        .reply(200, { secret: 'internal-data' })
+        .get('/endpoint')
+        .reply(200, {
+          schemaVersion: 1,
+          label: 'private',
+          message: 'internal-data',
+        })
+
+      server = await createTestServer()
+      await server.start()
+
+      const [dynamicResponse, endpointResponse, retiredEndpointResponse] =
+        await Promise.all([
+          got(
+            `${server.baseUrl}badge/dynamic/json.json?url=https%3A%2F%2Fexample.test%2Fdynamic&query=%24.secret`,
+          ),
+          got(
+            `${server.baseUrl}endpoint.json?url=https%3A%2F%2Fexample.test%2Fendpoint`,
+          ),
+          got(`${server.baseUrl}badge/endpoint.json`),
+        ])
+
+      expect(
+        [dynamicResponse, endpointResponse, retiredEndpointResponse].map(
+          ({ body }) => JSON.parse(body).message,
+        ),
+      ).to.deep.equal([
+        'internal-data',
+        'internal-data',
+        'https://github.com/badges/shields/pull/11583',
+      ])
+
+      const remainingDynamicResponses = await Promise.all(
+        ['regex', 'toml', 'xml', 'yaml'].map(format =>
+          got(`${server.baseUrl}badge/dynamic/${format}.json`),
+        ),
+      )
+      remainingDynamicResponses.forEach(({ body }) => {
+        expect(JSON.parse(body).message).not.to.equal('badge not found')
+      })
+    })
+  })
+
   describe('configuration validation', function () {
+    it('should reject invalid dynamicAndEndpointBadgesEnabled values', function () {
+      const customConfig = config.util.toObject()
+      customConfig.public.dynamicAndEndpointBadgesEnabled = 'not-a-boolean'
+
+      expect(() => new Server(customConfig)).to.throw(
+        '"dynamicAndEndpointBadgesEnabled" must be a boolean',
+      )
+    })
+
+    it('should parse dynamicAndEndpointBadgesEnabled environment values as booleans', function () {
+      this.timeout(5000)
+      const script = `
+        import config from 'config'
+        import Server from './core/server/server.js'
+        const server = new Server(config.util.toObject())
+        const value = server.config.public.dynamicAndEndpointBadgesEnabled
+        console.log(\`validated:\${typeof value}:\${value}\`)
+      `
+      const readEnvironmentValue = value =>
+        execFileSync(
+          process.execPath,
+          ['--input-type=module', '--eval', script],
+          {
+            encoding: 'utf8',
+            env: {
+              ...process.env,
+              NODE_CONFIG_ENV: 'test',
+              DYNAMIC_AND_ENDPOINT_BADGES_ENABLED: value,
+            },
+          },
+        )
+          .trim()
+          .split('\n')
+          .at(-1)
+
+      expect(['true', 'false'].map(readEnvironmentValue)).to.deep.equal([
+        'validated:boolean:true',
+        'validated:boolean:false',
+      ])
+    })
+
     describe('influx', function () {
       let customConfig
       beforeEach(function () {
@@ -483,7 +657,7 @@ describe('The server', function () {
           influx_password: 'influx-password',
         },
       })
-      clock = sinon.useFakeTimers()
+      clock = sinon.useFakeTimers({ toFake: ['setInterval'] })
       baseUrl = server.baseUrl
       await server.start()
     })
@@ -498,6 +672,7 @@ describe('The server', function () {
     })
 
     it('should push custom metrics', async function () {
+      const { promise: sentReq, resolve: markSentReq } = Promise.withResolvers()
       scope = nock('http://localhost:1112', {
         reqheaders: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -508,10 +683,14 @@ describe('The server', function () {
           /prometheus,application=shields,category=static,env=localhost-env,family=static-badge,instance=test-instance,service=static_badge service_requests_total=1\n/,
         )
         .basicAuth({ user: 'influx-username', pass: 'influx-password' })
-        .reply(200)
-      await got(`${baseUrl}badge/fruit-apple-green.svg`)
+        .reply(200, () => {
+          markSentReq()
+          return ''
+        })
 
-      await clock.tickAsync(1000 * metricsPushIntervalSeconds + 500)
+      await got(`${baseUrl}badge/fruit-apple-green.svg`)
+      await clock.tickAsync(1000 * metricsPushIntervalSeconds)
+      await sentReq
 
       expect(scope.isDone()).to.be.equal(
         true,

@@ -1,6 +1,5 @@
 import semver from 'semver'
-import { pathParams } from '../index.js'
-import PypiBase from './pypi-base.js'
+import PypiBase, { pypiGeneralParams } from './pypi-base.js'
 import { parseClassifiers } from './pypi-helpers.js'
 
 export default class PypiPythonVersions extends PypiBase {
@@ -11,14 +10,13 @@ export default class PypiPythonVersions extends PypiBase {
   static openApi = {
     '/pypi/pyversions/{packageName}': {
       get: {
-        summary: 'PyPI - Python Version',
-        parameters: pathParams({
-          name: 'packageName',
-          example: 'Django',
-        }),
+        summary: 'PyPI Python Version',
+        parameters: pypiGeneralParams,
       },
     },
   }
+
+  static _cacheLength = 43200
 
   static defaultBadgeData = { label: 'python' }
 
@@ -48,8 +46,8 @@ export default class PypiPythonVersions extends PypiBase {
     }
   }
 
-  async handle({ egg }) {
-    const packageData = await this.fetch({ egg })
+  async handle({ egg }, { pypiBaseUrl }) {
+    const packageData = await this.fetch({ egg, pypiBaseUrl })
 
     const versions = parseClassifiers(
       packageData,

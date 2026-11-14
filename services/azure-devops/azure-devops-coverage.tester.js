@@ -43,6 +43,12 @@ const secondLineCovStat = {
   covered: 35,
 }
 
+const secondBranchCovStat = {
+  label: 'Branches',
+  total: 19,
+  covered: 13,
+}
+
 const secondLinesCovStat = {
   label: 'Lines',
   total: 47,
@@ -51,6 +57,8 @@ const secondLinesCovStat = {
 
 const expCoverageSingleReport = '83%'
 const expCoverageMultipleReports = '77%'
+const expCoverageSingleBranchReport = '64%'
+const expCoverageMultipleBranchReports = '67%'
 
 t.create('default branch coverage')
   .get(`${uriPrefix}/${linuxDefinitionId}.json`)
@@ -118,17 +126,6 @@ t.create('invalid code coverage response')
       .reply(200, {}),
   )
   .expectBadge({ label: 'coverage', message: 'invalid response data' })
-
-t.create('no code coverage reports')
-  .get(mockBadgeUriPath)
-  .intercept(nock =>
-    nock(azureDevOpsApiBaseUri)
-      .get(mockLatestBuildApiUriPath)
-      .reply(200, latestBuildResponse)
-      .get(mockCodeCoverageApiUriPath)
-      .reply(200, { coverageData: [] }),
-  )
-  .expectBadge({ label: 'coverage', message: '0%' })
 
 t.create('no code coverage reports')
   .get(mockBadgeUriPath)
@@ -211,6 +208,7 @@ t.create('multiple line coverage stat reports')
         ],
       }),
   )
+  .expectBadge({ label: 'coverage', message: expCoverageMultipleReports })
 
 t.create('single JaCoCo style line coverage stats')
   .get(mockBadgeUriPath)
@@ -262,3 +260,82 @@ t.create('multiple JaCoCo style line coverage stat reports')
       }),
   )
   .expectBadge({ label: 'coverage', message: expCoverageMultipleReports })
+
+t.create('branch coverage with metric query param')
+  .get(`${uriPrefix}/${linuxDefinitionId}.json?metric=branch`)
+  .expectBadge({
+    label: 'coverage',
+    message: isIntegerPercentage,
+  })
+
+t.create('single branch coverage stats')
+  .get(`${mockBadgeUriPath}?metric=branch`)
+  .intercept(nock =>
+    nock(azureDevOpsApiBaseUri)
+      .get(mockLatestBuildApiUriPath)
+      .reply(200, latestBuildResponse)
+      .get(mockCodeCoverageApiUriPath)
+      .reply(200, {
+        coverageData: [
+          {
+            coverageStats: [branchCovStat],
+          },
+        ],
+      }),
+  )
+  .expectBadge({ label: 'coverage', message: expCoverageSingleBranchReport })
+
+t.create('mixed line and branch coverage stats with branch metric')
+  .get(`${mockBadgeUriPath}?metric=branch`)
+  .intercept(nock =>
+    nock(azureDevOpsApiBaseUri)
+      .get(mockLatestBuildApiUriPath)
+      .reply(200, latestBuildResponse)
+      .get(mockCodeCoverageApiUriPath)
+      .reply(200, {
+        coverageData: [
+          {
+            coverageStats: [firstLinesCovStat, branchCovStat],
+          },
+        ],
+      }),
+  )
+  .expectBadge({ label: 'coverage', message: expCoverageSingleBranchReport })
+
+t.create('multiple branch coverage stat reports')
+  .get(`${mockBadgeUriPath}?metric=branch`)
+  .intercept(nock =>
+    nock(azureDevOpsApiBaseUri)
+      .get(mockLatestBuildApiUriPath)
+      .reply(200, latestBuildResponse)
+      .get(mockCodeCoverageApiUriPath)
+      .reply(200, {
+        coverageData: [
+          {
+            coverageStats: [
+              firstLinesCovStat,
+              branchCovStat,
+              secondBranchCovStat,
+            ],
+          },
+        ],
+      }),
+  )
+  .expectBadge({ label: 'coverage', message: expCoverageMultipleBranchReports })
+
+t.create('no branch coverage stats')
+  .get(`${mockBadgeUriPath}?metric=branch`)
+  .intercept(nock =>
+    nock(azureDevOpsApiBaseUri)
+      .get(mockLatestBuildApiUriPath)
+      .reply(200, latestBuildResponse)
+      .get(mockCodeCoverageApiUriPath)
+      .reply(200, {
+        coverageData: [
+          {
+            coverageStats: [firstLinesCovStat],
+          },
+        ],
+      }),
+  )
+  .expectBadge({ label: 'coverage', message: '0%' })
